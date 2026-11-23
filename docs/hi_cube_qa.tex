@@ -712,7 +712,17 @@ subtraction (Section~\ref{sec:maps}).\\[2pt]
 Gaussian noise (kurtosis) &
 $<5\%$ of channels $>5\sigma_{\kappa}$ from 3 pass, $<15\%$ warn &
 Non-Gaussian channels (residual RFI, incomplete continuum subtraction) that the
-RMS check alone cannot see (Section~\ref{sec:kurtosis}).\\
+RMS check alone cannot see (Section~\ref{sec:kurtosis}).\\[2pt]
+Flat baseline &
+fitted trend of the per-channel mean, in standard errors of the mean:
+$<5$ pass, $<10$ warn &
+A residual slope or curvature left by continuum subtraction does not show in the noise
+and appears as a seam where pointings are mosaicked.\\[2pt]
+Low large-scale noise &
+median ratio of the smoothed-map rms to the thermal estimate from neighbouring
+channels: $<1.5$ pass, $<3$ warn &
+Field-wide ripples that are present in every channel average out in the baseline and add
+little to the pixel noise, but stand out in maps smoothed to a few arcminutes.\\
 \end{longtable}
 
 % ===========================================================================

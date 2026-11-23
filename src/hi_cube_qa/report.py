@@ -156,6 +156,8 @@ _UNIT_FIG_ORDER = [
     ("rms_histogram", "RMS histogram"),
     ("noise_overview", "Noise overview"),
     ("kurtosis", "Non-Gaussianity (kurtosis)"),
+    ("baseline", "Baseline flatness"),
+    ("large_scale", "Large-scale noise"),
     ("spectral", "Spectral profile"),
     ("bandspec", "Band spectrum"),
     ("nhi", "N_HI sensitivity"),

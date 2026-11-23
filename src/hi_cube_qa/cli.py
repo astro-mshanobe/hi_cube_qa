@@ -16,14 +16,17 @@ import numpy as np
 from . import figures, obsinfo
 
 # Local modules
+from .baseline_flatness import baseline_from_spectra
 from .config import QAConfig, load_config, write_example_config
 from .discovery import Unit, discover_flag_reports, discover_session, summarise
 from .figures import (
     fig_band_spectrum,
+    fig_baseline,
     fig_beam_stats,
     fig_cumulative_rms,
     fig_flag_summary,
     fig_kurtosis,
+    fig_large_scale,
     fig_nhi_sensitivity,
     fig_noise_overview,
     fig_rms_curve,
@@ -33,6 +36,7 @@ from .figures import (
     fig_summary_table,
 )
 from .io_utils import channel_width_hz, flag_fraction_of, load_flag_report
+from .large_scale import assess_file
 from .noise import (
     brightness_temperature,
     channel_summary,
@@ -166,6 +170,15 @@ def _noise_reference(labels_by_product: dict[str, str]) -> str | None:
     return next(iter(labels_by_product.values()), None)
 
 
+def _large_scale_wanted(selection, product: str, is_reference: bool) -> bool:
+    """Whether the large-scale check runs on this product (config large_scale.products)."""
+    if selection == "all":
+        return True
+    if selection == "reference":
+        return is_reference
+    return product in selection
+
+
 # Per-unit assessment
 def assess_unit(
     unit: Unit,
@@ -263,6 +276,7 @@ def assess_unit(
     beam_arrays = {}
     cont_by_label = {}
     kurt_dict, kurt_by_label = {}, {}
+    baseline_by_label = {}
     for cp in unit.products:
         lab = cp.label
         if lab not in red:
@@ -312,6 +326,16 @@ def assess_unit(
         beam_diags[lab] = bd
         nhi_sums[lab] = nh
         prof_dict[lab] = {"peak": r["peak"], "mean": r["mean"], "colour": col}
+        if cfg.baseline.get("enable", True):
+            baseline_by_label[lab] = baseline_from_spectra(
+                r["vel_kms"],
+                r["freq_hz"],
+                r["mean"],
+                rms,
+                n_beams=r["ny"] * r["nx"] / ppb,
+                degree=int(cfg.baseline.get("degree", 1)),
+                n_sigma=float(cfg.baseline.get("sigma_clip", 4.0)),
+            )
         spec_dict[lab] = {
             "s_int": r["s_int"],
             "peak": r["peak"],
@@ -369,6 +393,35 @@ def assess_unit(
         )
         logger.info(f"      kurtosis: {pct_bad_k:.1f}% Bad, {pct_warn_k:.1f}% Warn | {xref_note}")
 
+    # Large-scale noise: a separate pass over the sampled channels of the chosen products
+    large_by_label, large_dict = {}, {}
+    ls_cfg = cfg.large_scale
+    ls_limits = {
+        "warn_ratio": thr["ls_warn_ratio"],
+        "fail_ratio": thr["ls_fail_ratio"],
+        "warn_fraction": thr["ls_warn_fraction"],
+    }
+    if ls_cfg.get("enable", True):
+        for cp in unit.products:
+            lab = cp.label
+            if lab not in red or not _large_scale_wanted(
+                ls_cfg["products"], cp.product, lab == ref_label
+            ):
+                continue
+            try:
+                summary, rows = assess_file(cp.path, ls_cfg, limits=ls_limits)
+            except Exception as exc:
+                logger.warning(f"    [{lab}] large-scale noise not assessed ({exc})")
+                large_by_label[lab] = {"available": False, "note": str(exc)}
+                continue
+            large_by_label[lab] = summary
+            large_dict[lab] = {"summary": summary, "rows": rows, "colour": cols[lab]}
+            logger.info(
+                f"    [{lab}] large-scale noise: ratio {summary['median_ratio']:.2f} "
+                f"({summary['n_channels']} channels, sigma {summary['sigma_arcsec']:g} arcsec) "
+                f"-> {summary['status']}"
+            )
+
     # Figures
     figures = {
         "summary": fig_summary_table(noise_sums, beam_diags, theory_flag, nchan, nhi_sums),
@@ -399,6 +452,15 @@ def assess_unit(
         "kurtosis": fig_kurtosis(freq, vel, kurt_dict),
         "beam": fig_beam_stats(freq, vel, beam_dict),
     }
+    baseline_dict = {
+        lab: {"result": res, "colour": cols[lab]}
+        for lab, res in baseline_by_label.items()
+        if res.get("available")
+    }
+    if baseline_dict:
+        figures["baseline"] = fig_baseline(freq, vel, baseline_dict)
+    if large_dict:
+        figures["large_scale"] = fig_large_scale(freq, vel, large_dict, limits=ls_limits)
 
     # Thumbnails per product (pre-selected planes)
     thumb_sections = []
@@ -443,6 +505,8 @@ def assess_unit(
         thr,
         cont_by_label=cont_by_label,
         kurt_by_label=kurt_by_label,
+        baseline_by_label=baseline_by_label,
+        large_by_label=large_by_label,
     )
 
     bundle = {
@@ -472,6 +536,8 @@ def assess_unit(
         "_nhi_sums": nhi_sums,
         "_cont": cont_by_label,
         "_kurt": kurt_by_label,
+        "_baseline": baseline_by_label,
+        "_large": large_by_label,
         "_kurt_arrays": {lab: kurt_dict[lab]["kurtosis"] for lab in kurt_dict},
         "_rms_dict": rms_dict,
         "_freq": freq,
@@ -579,6 +645,7 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
 
         band_csv = cfg.session_out_path(session.obsid, "_band_summary.csv")
         merged_ns, merged_bd, merged_nhi, merged_cont, merged_kurt = {}, {}, {}, {}, {}
+        merged_baseline, merged_large = {}, {}
         for b in bundles:
             for lab in b["_noise_sums"]:
                 key = f"{b['pointing']}/{b['cube_id']}/{lab}"
@@ -587,6 +654,8 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
                 merged_nhi[key] = b["_nhi_sums"].get(lab, {})
                 merged_cont[key] = b["_cont"].get(lab, {})
                 merged_kurt[key] = b["_kurt"].get(lab, {})
+                merged_baseline[key] = b["_baseline"].get(lab, {})
+                merged_large[key] = b["_large"].get(lab, {})
         write_band_summary_csv(
             band_csv,
             merged_ns,
@@ -595,6 +664,8 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
             nhi_by_label=merged_nhi,
             cont_by_label=merged_cont,
             kurt_by_label=merged_kurt,
+            baseline_by_label=merged_baseline,
+            large_by_label=merged_large,
         )
         logger.info(f"  Band summary CSV -> {band_csv}")
 
@@ -653,6 +724,8 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
             nh = b["_nhi_sums"].get(lab, {})
             cm = b["_cont"].get(lab, {})
             kt = b["_kurt"].get(lab, {})
+            bl = b["_baseline"].get(lab) or {}
+            ls = b["_large"].get(lab) or {}
             survey_rows.append(
                 {
                     "obsid": session.obsid,
@@ -668,6 +741,13 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
                     if cm.get("available")
                     else None,
                     "pct_bad_kurtosis": round(kt["pct_bad"], 2) if kt.get("available") else None,
+                    "baseline_sigma": round(bl["baseline_sigma"], 2)
+                    if bl.get("available")
+                    else None,
+                    "ls_median_ratio": round(ls["median_ratio"], 3)
+                    if ls.get("available")
+                    else None,
+                    "ls_status": ls["status"] if ls.get("available") else None,
                     "pb_corrected": b["pb_corrected"],
                     "overall": ns["overall_quality"],
                 }

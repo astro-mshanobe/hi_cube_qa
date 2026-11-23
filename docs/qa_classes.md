@@ -53,8 +53,8 @@ finite pixels in the channel divided by the pixels per beam.
 
 ### Expert checklist (Pass / Warn / Fail)
 
-Nine criteria per unit and product, in `<obsid>_checklist.csv`. All limits are own
-choices; only the beam-scatter limit is read from the config.
+Eleven criteria per unit and product, in `<obsid>_checklist.csv`. All limits are own
+choices. The beam-scatter, baseline and large-scale limits are read from the config; the others are fixed in the code.
 
 | Criterion | Pass | Warn | Fail |
 |-----------|------|------|------|
@@ -67,6 +67,8 @@ choices; only the beam-scatter limit is read from the config.
 | No severe outliers (channels above 5x median RMS) | 0 | < 5 | otherwise |
 | Low continuum residual (% pixels above `continuum.sigma` in more than 50 % of channels) | < 0.5 % | < 2 % | otherwise |
 | Gaussian noise (% of channels Bad on kurtosis) | < 5 % | < 15 % | otherwise |
+| Flat baseline (fitted amplitude in standard errors of the channel mean) | < 5 (`baseline_warn_sigma`) | < 10 (`baseline_bad_sigma`) | otherwise |
+| Low large-scale noise (median smoothed rms / thermal) | < 1.5 (`ls_warn_ratio`) and at most 25 % of channels above it (`ls_warn_fraction`) | < 3 (`ls_fail_ratio`) | otherwise |
 
 ### Flagged fraction (session figure)
 
@@ -74,18 +76,48 @@ Flag-summary entries are drawn in the warning colour above 10 % and the severe c
 above 30 %. Own choice; fixed in the code (the config keys `flag_warn_pct` and
 `flag_bad_pct` are not read).
 
-### Baseline flatness (`hi-cube-qa-baseline`)
+### Baseline flatness
 
-A separate command for continuum-subtracted cubes (default pattern `imsub-line.fits`).
-It fits a polynomial (default degree 1) to the per-channel mean against velocity. Outlier
-channels are rejected with astropy's `FittingWithOutlierRemoval` (`sigma_clip` about the
-median, sigma from the MAD, 4 sigma, 3 iterations); the trend is then an ordinary
-least-squares fit to the retained channels. If rejection would leave fewer than degree + 2
-channels, none is rejected. The peak-to-peak amplitude of the fit is expressed in standard
-errors of the channel mean. The standard error
-is the per-channel MAD RMS divided by the square root of the number of beams in the image.
-Pass below 5, Warn below 10, Fail otherwise (`--warn-sigma`, `--bad-sigma`). Source: own
-choice for all of it; the 5 and 10 follow the kurtosis convention above.
+Run on every product, from the per-channel mean and rms already measured. It fits a
+polynomial (default degree 1) to the per-channel mean against velocity. Outlier channels are
+rejected with astropy's `FittingWithOutlierRemoval` (`sigma_clip` about the median, sigma
+from the MAD, 4 sigma, 3 iterations); the trend is then an ordinary least-squares fit to the
+retained channels. If rejection would leave fewer than degree + 2 channels, none is rejected.
+The peak-to-peak amplitude of the fit is expressed in standard errors of the channel mean:
+the per-channel MAD rms divided by the square root of the number of beams in the image.
+Pass below 5, Warn below 10, Fail otherwise (`thresholds.baseline_warn_sigma`,
+`baseline_bad_sigma`). Source: own choice for all of it; the 5 and 10 follow the kurtosis
+convention above. `hi-cube-qa-baseline` applies the same fit to cubes read from disk
+(default pattern `imsub-line.fits`, which discovery does not find).
+
+### Large-scale noise
+
+A ripple or stripe pattern that is present in every channel (for example from a
+short-baseline problem) averages to zero over the image, so the baseline check does not see
+it, and it adds little to the pixel noise in quadrature. It leaves excess power on large
+angular scales. For every `stride`-th channel (default 20), the channel map and its
+difference from a neighbouring channel are smoothed with a Gaussian of `sigma_arcsec`
+(default 120) by normalised convolution, over valid pixels only (finite, not exactly zero,
+and above `pb_limit` where a `*.pb.fits` cube sits next to the cube). The sigma-clipped
+standard deviation of the smoothed channel map is compared with the same statistic of the
+smoothed difference map divided by sqrt(2), which is an empirical estimate of what noise
+alone gives in that channel, with the correlation of its own beam. The cube is graded on the
+median ratio over the sampled channels and the fraction of channels above `ls_warn_ratio`:
+Fail at a median ratio of `ls_fail_ratio` (3) or more, Warn at `ls_warn_ratio` (1.5) or more or
+when more than `ls_warn_fraction` (25 %) of the channels exceed it, Pass otherwise. The report
+also gives the excess in mJy/beam and the correlation of the smoothed maps of neighbouring
+channels (near 0 for noise, near 1 for structure coherent between channels), and notes
+structure that covers only part of the field (unclipped ratio of 3 or more with a Pass).
+
+Source: the method and the limits are this project's own; there is no published reference
+for them here. The limits are judgement calls, chosen so that noise alone gives ratios of
+about 1 +- 0.15; on synthetic cubes noise alone, white or correlated, gives 0.85 to 1.15.
+Known blind spot: a pattern that is independent in every channel is in the difference map as
+well, so the thermal reference rises with it and the ratio stays near 1 (the thermal
+estimate itself then shows it). It smooths about nchan/stride channels per cube, so by default
+only the reference product is assessed (`large_scale.products`), and the image must hold at
+least 25 smoothing areas after the edges are trimmed (about 450 pixels across for a 20-pixel
+sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports that it was not assessed.
 
 ## Noise model and sensitivity
 

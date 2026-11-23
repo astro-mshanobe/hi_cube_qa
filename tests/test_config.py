@@ -56,6 +56,12 @@ INVALID_SETTINGS = [
     ("radiometer:\n  eta: 1.5\n", "eta"),
     ("radiometer:\n  t_total: -1\n", "t_total"),
     ("radiometer:\n  df: 0\n", "df must"),
+    ("large_scale:\n  products: some\n", "large_scale.products"),
+    ("large_scale:\n  products: []\n", "large_scale.products"),
+    ("large_scale:\n  stride: 0\n", "large_scale.stride"),
+    ("large_scale:\n  sigma_arcsec: -1\n", "large_scale.sigma_arcsec"),
+    ("large_scale:\n  min_channels: 0\n", "large_scale.min_channels"),
+    ("baseline:\n  degree: -1\n", "baseline.degree"),
 ]
 
 
@@ -117,6 +123,8 @@ def test_example_file_matches_defaults(tmp_path):
         "sensitivity",
         "continuum",
         "thumbnails",
+        "large_scale",
+        "baseline",
     ):
         for key, val in user[section].items():
             assert cf.DEFAULTS[section][key] == val, f"{section}.{key}"

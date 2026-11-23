@@ -102,6 +102,23 @@ DEFAULTS: dict[str, Any] = {
         "sigma_clip": 3.0,
         "clip_iterations": 3,
     },
+    # Excess noise power on large angular scales (large_scale.py). It smooths about
+    # nchan/stride channels per cube, so by default only the reference product is assessed.
+    "large_scale": {
+        "enable": True,
+        "products": "reference",  # 'reference' (residual if present), 'all', or a list
+        "sigma_arcsec": 120.0,  # Gaussian smoothing sigma
+        "stride": 20,  # assess every stride-th channel
+        "pb_limit": 0.5,  # with a *.pb.fits cube next to the cube
+        "use_pb": True,
+        "min_channels": 5,
+    },
+    # Baseline flatness: polynomial fit to the per-channel mean (baseline_flatness.py).
+    "baseline": {
+        "enable": True,
+        "degree": 1,
+        "sigma_clip": 4.0,
+    },
     "thresholds": {
         "rms_warn_factor": 1.5,
         "rms_bad_factor": 3.0,
@@ -114,6 +131,14 @@ DEFAULTS: dict[str, Any] = {
         # this many standard errors of the estimator (beam-corrected effective N).
         "kurtosis_warn_sigma": 5.0,
         "kurtosis_bad_sigma": 10.0,
+        # Large-scale noise: median ratio of the smoothed-map rms to the thermal
+        # estimate, and the fraction of channels above the warning ratio.
+        "ls_warn_ratio": 1.5,
+        "ls_fail_ratio": 3.0,
+        "ls_warn_fraction": 0.25,
+        # Baseline flatness: fitted amplitude in standard errors of the channel mean.
+        "baseline_warn_sigma": 5.0,
+        "baseline_bad_sigma": 10.0,
     },
 }
 
@@ -193,6 +218,14 @@ class QAConfig:
         return self._cfg["boresight"]
 
     @property
+    def large_scale(self) -> dict:
+        return self._cfg["large_scale"]
+
+    @property
+    def baseline(self) -> dict:
+        return self._cfg["baseline"]
+
+    @property
     def thresholds(self) -> dict:
         return self._cfg["thresholds"]
 
@@ -269,6 +302,19 @@ def load_config(yaml_path: str | Path) -> QAConfig:
         if rad["df"] <= 0:
             raise ValueError("radiometer.df must be positive (channel width in Hz)")
 
+    ls = cfg["large_scale"]
+    prods = ls["products"]
+    if not (prods in ("reference", "all") or (isinstance(prods, list) and prods)):
+        raise ValueError("large_scale.products must be 'reference', 'all' or a non-empty list")
+    if int(ls["stride"]) < 1:
+        raise ValueError("large_scale.stride must be at least 1")
+    if float(ls["sigma_arcsec"]) <= 0:
+        raise ValueError("large_scale.sigma_arcsec must be positive")
+    if int(ls["min_channels"]) < 1:
+        raise ValueError("large_scale.min_channels must be at least 1")
+    if int(cfg["baseline"]["degree"]) < 0:
+        raise ValueError("baseline.degree must be 0 or more")
+
     return QAConfig(cfg)
 
 
@@ -324,7 +370,7 @@ radiometer:
     n_ant_fallback: 60    # used only if 'auto' finds nothing
     t_total: 1.0          # hours on-source (set to the actual track length)
     df:      26367.19     # Hz; auto-overridden per cube from the FITS header
-    nfac:    1.7          # Briggs robust=-0.5 penalty; or 'auto' (read from header)
+    nfac:    auto         # weighting penalty: a number, or 'auto' (from the header's Briggs robust)
     sefd_curve:    default   # 'default' freq-dependent curve | 'flat' | [[MHz,Jy],...]
     flag_fraction: auto      # fold flagging into theory: 'auto' | number | null
 
@@ -362,6 +408,28 @@ thresholds:
     flag_bad_pct:      30.0
     kurtosis_warn_sigma: 5.0   # |kurtosis-3| > N standard errors -> Warn
     kurtosis_bad_sigma:  10.0  # |kurtosis-3| > N standard errors -> Bad
+    ls_warn_ratio:     1.5     # large-scale noise: median ratio to thermal -> Warn
+    ls_fail_ratio:     3.0     # ... -> Fail
+    ls_warn_fraction:  0.25    # Warn when more channels than this exceed ls_warn_ratio
+    baseline_warn_sigma: 5.0   # baseline amplitude in standard errors -> Warn
+    baseline_bad_sigma:  10.0  # ... -> Fail
+
+# Excess noise power on large angular scales. Smooths about nchan/stride channels per
+# cube, so by default only the reference product (residual if present) is assessed.
+large_scale:
+    enable: true
+    products: reference    # 'reference' | 'all' | [residual, image]
+    sigma_arcsec: 120.0    # Gaussian smoothing sigma
+    stride: 20             # assess every stride-th channel
+    pb_limit: 0.5          # used when a *.pb.fits cube sits next to the cube
+    use_pb: true
+    min_channels: 5
+
+# Baseline flatness: polynomial fit to the per-channel mean, for every product.
+baseline:
+    enable: true
+    degree: 1
+    sigma_clip: 4.0        # clip outlier channels at this many sigma before fitting
 """
     with open(path, "w") as f:
         f.write(example)

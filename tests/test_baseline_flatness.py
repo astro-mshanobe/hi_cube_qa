@@ -103,3 +103,15 @@ def test_unavailable_with_too_few_channels(tmp_path):
     fits.PrimaryHDU(data=data, header=cube_header(NCHAN, NY, NX)).writeto(path)
     with CubeHandle(path) as handle:
         assert bf.baseline_check(handle) == {"available": False}
+
+
+def test_from_spectra_treats_less_than_one_beam_as_one():
+    vel = np.linspace(0.0, 100.0, 30)
+    mean = 1e-5 * vel / 100.0
+    rms = np.full(30, 1e-3)
+    freq = 1.4e9 - 1e4 * np.arange(30)
+    few = bf.baseline_from_spectra(vel, freq, mean, rms, n_beams=0.25)
+    one = bf.baseline_from_spectra(vel, freq, mean, rms, n_beams=1.0)
+    assert few["baseline_sigma"] == one["baseline_sigma"]
+    assert abs(one["typical_sem_jy"] - 1e-3) < 1e-12
+    assert list(one["channel"]) == list(range(30))

@@ -826,6 +826,132 @@ def fig_beam_stats(freq_hz, vel_kms, beam_dict) -> go.Figure:
     return fig
 
 
+def fig_baseline(freq_hz, vel_kms, baseline_dict) -> go.Figure:
+    """Per-channel mean (the baseline) with its fitted trend.
+
+    baseline_dict[label] = {'result': baseline_from_spectra(...), 'colour': col}.
+    """
+    fig = go.Figure()
+    for label, d in baseline_dict.items():
+        res = d["result"]
+        if not res.get("available"):
+            continue
+        col = d["colour"]
+        keep = res["keep_mask"]
+        mean_ujy = np.asarray(res["mean_jy"]) * 1e6
+        chans = np.asarray(res["channel"])
+        name = f"{label} (amplitude {res['baseline_sigma']:.1f} SE)"
+        fig.add_trace(
+            go.Scatter(
+                x=res["vel_kms"][keep],
+                customdata=chans[keep],
+                y=mean_ujy[keep],
+                mode="markers",
+                name=name,
+                legendgroup=label,
+                marker=dict(color=col, size=4),
+                hovertemplate=HOVER_CH + "<br>mean = %{y:.2f} uJy/beam<extra></extra>",
+            )
+        )
+        if (~keep).any():
+            fig.add_trace(
+                go.Scatter(
+                    x=res["vel_kms"][~keep],
+                    customdata=chans[~keep],
+                    y=mean_ujy[~keep],
+                    mode="markers",
+                    name=f"{label} clipped",
+                    legendgroup=label,
+                    marker=dict(color=COL_WARN, symbol="x", size=7),
+                    hovertemplate=HOVER_CH
+                    + " [clipped]<br>mean = %{y:.2f} uJy/beam<extra></extra>",
+                )
+            )
+        fig.add_trace(
+            go.Scatter(
+                x=res["vel_kms"],
+                y=np.asarray(res["fit_jy"]) * 1e6,
+                mode="lines",
+                name=f"{label} fit",
+                legendgroup=label,
+                line=dict(color=col, width=2.5),
+                hoverinfo="skip",
+            )
+        )
+    fig.add_hline(y=0, line=dict(color="rgba(255,255,255,0.25)", dash="dot", width=1))
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=dict(text="Baseline flatness: per-channel mean and fitted trend", font=dict(size=15)),
+        yaxis=dict(title="Channel mean (uJy/beam)"),
+        legend=LEGEND_SIDE,
+        height=380,
+        margin=dict(l=70, r=_MARGIN_R, t=80, b=60),
+    )
+    add_channel_axis(fig, vel_kms)
+    return fig
+
+
+def fig_large_scale(freq_hz, vel_kms, large_dict, limits=None) -> go.Figure:
+    """Ratio of the smoothed-map rms to the thermal estimate, in the sampled channels.
+
+    large_dict[label] = {'summary': dict, 'rows': [per-channel dicts], 'colour': col}.
+    """
+    limits = limits or {}
+    warn = limits.get("warn_ratio", 1.5)
+    fail = limits.get("fail_ratio", 3.0)
+    fig = go.Figure()
+    vel = np.asarray(vel_kms, dtype=float)
+    for label, d in large_dict.items():
+        rows = d["rows"]
+        if not rows:
+            continue
+        chans = np.array([r["channel"] for r in rows], dtype=int)
+        ratio = np.array([r["ratio"] for r in rows], dtype=float)
+        summary = d["summary"]
+        fig.add_trace(
+            go.Scatter(
+                x=vel[chans],
+                customdata=chans,
+                y=ratio,
+                mode="lines+markers",
+                name=f"{label} (median {summary['median_ratio']:.2f}, {summary['status']})",
+                line=dict(color=d["colour"], width=1.2),
+                marker=dict(size=5),
+                hovertemplate=HOVER_CH + "<br>ratio = %{y:.2f}<extra></extra>",
+            )
+        )
+    fig.add_hline(
+        y=1.0,
+        line=dict(color=COL_THEORY, dash="dot", width=1.2),
+        annotation_text="thermal",
+        annotation_font_color=COL_THEORY,
+    )
+    fig.add_hline(
+        y=warn,
+        line=dict(color=COL_WARN, dash="dash", width=1.2),
+        annotation_text=f"{warn:g}x (Warn)",
+        annotation_font_color=COL_WARN,
+    )
+    fig.add_hline(
+        y=fail,
+        line=dict(color=COL_BAD, dash="dash", width=1.2),
+        annotation_text=f"{fail:g}x (Fail)",
+        annotation_font_color=COL_BAD,
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=dict(
+            text="Large-scale noise: smoothed-map rms / thermal expectation", font=dict(size=15)
+        ),
+        yaxis=dict(title="rms / thermal"),
+        legend=LEGEND_SIDE,
+        height=380,
+        margin=dict(l=70, r=_MARGIN_R, t=80, b=60),
+    )
+    add_channel_axis(fig, vel_kms)
+    return fig
+
+
 def fig_flag_summary(flag_data) -> go.Figure | None:
     """One bar per flag report (per pointing/stage), coloured by fraction."""
     if flag_data is None:

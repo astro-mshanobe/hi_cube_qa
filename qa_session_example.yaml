@@ -47,7 +47,7 @@ radiometer:
     n_ant_fallback: 60    # used only if 'auto' finds nothing
     t_total: 1.0          # hours on-source (set to the actual track length)
     df:      26367.19     # Hz; auto-overridden per cube from the FITS header
-    nfac:    1.7          # Briggs robust=-0.5 penalty; or 'auto' (read from header)
+    nfac:    auto         # weighting penalty: a number, or 'auto' (from the header's Briggs robust)
     sefd_curve:    default   # 'default' freq-dependent curve | 'flat' | [[MHz,Jy],...]
     flag_fraction: auto      # fold flagging into theory: 'auto' | number | null
 
@@ -85,3 +85,25 @@ thresholds:
     flag_bad_pct:      30.0
     kurtosis_warn_sigma: 5.0   # |kurtosis-3| > N standard errors -> Warn
     kurtosis_bad_sigma:  10.0  # |kurtosis-3| > N standard errors -> Bad
+    ls_warn_ratio:     1.5     # large-scale noise: median ratio to thermal -> Warn
+    ls_fail_ratio:     3.0     # ... -> Fail
+    ls_warn_fraction:  0.25    # Warn when more channels than this exceed ls_warn_ratio
+    baseline_warn_sigma: 5.0   # baseline amplitude in standard errors -> Warn
+    baseline_bad_sigma:  10.0  # ... -> Fail
+
+# Excess noise power on large angular scales. Smooths about nchan/stride channels per
+# cube, so by default only the reference product (residual if present) is assessed.
+large_scale:
+    enable: true
+    products: reference    # 'reference' | 'all' | [residual, image]
+    sigma_arcsec: 120.0    # Gaussian smoothing sigma
+    stride: 20             # assess every stride-th channel
+    pb_limit: 0.5          # used when a *.pb.fits cube sits next to the cube
+    use_pb: true
+    min_channels: 5
+
+# Baseline flatness: polynomial fit to the per-channel mean, for every product.
+baseline:
+    enable: true
+    degree: 1
+    sigma_clip: 4.0        # clip outlier channels at this many sigma before fitting

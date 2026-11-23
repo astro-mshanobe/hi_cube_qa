@@ -116,17 +116,23 @@ def write_band_summary_csv(
     nhi_by_label: dict | None = None,
     cont_by_label: dict | None = None,
     kurt_by_label: dict | None = None,
+    baseline_by_label: dict | None = None,
+    large_by_label: dict | None = None,
 ) -> None:
     """Write one row per cube with band-level summary statistics."""
     nhi_by_label = nhi_by_label or {}
     cont_by_label = cont_by_label or {}
     kurt_by_label = kurt_by_label or {}
+    baseline_by_label = baseline_by_label or {}
+    large_by_label = large_by_label or {}
     rows = []
     for label, ns in noise_summaries.items():
         bd = beam_diag.get(label, {})
         nh = nhi_by_label.get(label, {})
         cm = cont_by_label.get(label, {})
         kt = kurt_by_label.get(label, {})
+        bl = baseline_by_label.get(label) or {}
+        ls = large_by_label.get(label) or {}
         row = {
             "cube_label": label,
             "n_channels": ns["n_total"],
@@ -145,6 +151,13 @@ def write_band_summary_csv(
             else "",
             "pct_bad_kurtosis": f"{kt['pct_bad']:.2f}" if kt.get("available") else "",
             "pct_warn_kurtosis": f"{kt['pct_warn']:.2f}" if kt.get("available") else "",
+            "baseline_sigma": f"{bl['baseline_sigma']:.2f}" if bl.get("available") else "",
+            "baseline_n_clipped": bl["n_clipped"] if bl.get("available") else "",
+            "ls_status": ls["status"] if ls.get("available") else "",
+            "ls_median_ratio": f"{ls['median_ratio']:.3f}" if ls.get("available") else "",
+            "ls_frac_above": f"{ls['frac_above']:.3f}" if ls.get("available") else "",
+            "ls_median_excess_mjy": f"{ls['median_excess']:.4f}" if ls.get("available") else "",
+            "ls_median_corr": f"{ls['median_corr']:.3f}" if ls.get("available") else "",
             "n_good": ns["n_good"],
             "n_warn": ns["n_warn"],
             "n_bad": ns["n_bad"],
@@ -210,6 +223,16 @@ CHECKLIST_CRITERIA = [
         "Few channels with |kurtosis-3| beyond the expected sampling error",
         "noise",
     ),
+    (
+        "Flat baseline",
+        "Fitted trend of the per-channel mean < 5 standard errors of the mean",
+        "baseline",
+    ),
+    (
+        "Low large-scale noise",
+        "Smoothed-map rms within 1.5x the thermal expectation from neighbouring channels",
+        "large_scale",
+    ),
 ]
 
 
@@ -220,11 +243,15 @@ def build_expert_checklist(
     thresholds: dict,
     cont_by_label: dict | None = None,
     kurt_by_label: dict | None = None,
+    baseline_by_label: dict | None = None,
+    large_by_label: dict | None = None,
 ) -> list[dict]:
     """Evaluate each expert criterion for each cube."""
     rows = []
     cont_by_label = cont_by_label or {}
     kurt_by_label = kurt_by_label or {}
+    baseline_by_label = baseline_by_label or {}
+    large_by_label = large_by_label or {}
 
     for label, ns in noise_summaries.items():
         bd = beam_diags.get(label, {})
@@ -318,6 +345,30 @@ def build_expert_checklist(
         else:
             status, value, note = "N/A", "-", "No kurtosis available"
         rows.append(_row(label, CHECKLIST_CRITERIA[8], status, value, note))
+
+        # Flat baseline
+        bl = baseline_by_label.get(label)
+        if bl and bl.get("available") and np.isfinite(bl["baseline_sigma"]):
+            sigma = bl["baseline_sigma"]
+            warn = thresholds.get("baseline_warn_sigma", 5.0)
+            bad = thresholds.get("baseline_bad_sigma", 10.0)
+            status = "Pass" if sigma < warn else "Warn" if sigma < bad else "Fail"
+            value = f"{sigma:.1f} standard errors"
+            note = f"{bl['n_clipped']} channel(s) clipped" if bl["n_clipped"] else ""
+        else:
+            status, value, note = "N/A", "-", "No baseline fit available"
+        rows.append(_row(label, CHECKLIST_CRITERIA[9], status, value, note))
+
+        # Large-scale noise
+        ls = large_by_label.get(label)
+        if ls and ls.get("available"):
+            status = {"Pass": "Pass", "Warn": "Warn", "Fail": "Fail"}.get(ls["status"], "N/A")
+            value = f"{ls['median_ratio']:.2f}x thermal ({ls['frac_above']:.0%} of channels above)"
+            note = ls.get("note", "")
+        else:
+            status, value = "N/A", "-"
+            note = (ls or {}).get("note") or "Not assessed for this product"
+        rows.append(_row(label, CHECKLIST_CRITERIA[10], status, value, note))
 
     return rows
 

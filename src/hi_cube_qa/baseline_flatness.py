@@ -105,53 +105,55 @@ def _robust_polyfit(x, y, degree, n_sigma=4.0, n_iter=3):
     return np.polyfit(x[keep], y[keep], degree), keep
 
 
-def baseline_check(h: CubeHandle, degree: int = 1, chunk: int = 64, n_sigma: float = 4.0) -> dict:
-    """Fit a low-order polynomial to the per-channel mean (baseline) vs
-    velocity, then express the fitted trend's peak-to-peak amplitude in
-    units of the standard error on the per-channel mean (not the raw
-    per-pixel RMS - averaging over ~ny*nx/pix_per_beam independent beam
-    areas per channel shrinks the noise on the MEAN well below the per-pixel
-    RMS, so per-pixel RMS alone would be far too permissive a yardstick).
+def baseline_from_spectra(
+    vel_kms, freq_hz, mean, rms, n_beams: float, degree: int = 1, n_sigma: float = 4.0
+) -> dict:
+    """Fit a low-order polynomial to the per-channel mean (the baseline) against velocity.
 
-    The fit itself is sigma-clipped (see _robust_polyfit) so isolated
-    outlier channels don't masquerade as a systematic trend.
+    The peak-to-peak amplitude of the fit is expressed in units of the standard error on
+    the per-channel mean, rms / sqrt(n_beams), not the per-pixel rms: averaging over the
+    ~ny*nx/pix_per_beam independent beam areas of a channel shrinks the noise on the mean
+    well below the per-pixel rms, so the per-pixel rms would be a far too permissive
+    yardstick. The fit is sigma-clipped (see _robust_polyfit) so that isolated outlier
+    channels do not pass as a systematic trend.
     """
-    mean, rms = per_channel_mean_rms(h, chunk=chunk)
+    vel_kms, freq_hz = np.asarray(vel_kms, dtype=float), np.asarray(freq_hz, dtype=float)
+    mean, rms = np.asarray(mean, dtype=float), np.asarray(rms, dtype=float)
     fin = np.isfinite(mean) & np.isfinite(rms) & (rms > 0)
     if fin.sum() < degree + 2:
         return dict(available=False)
 
-    x = h.vel_kms[fin]
-    freq = h.freq_hz[fin]
-    y = mean[fin]
+    x, y = vel_kms[fin], mean[fin]
     coeffs, keep = _robust_polyfit(x, y, degree, n_sigma=n_sigma)
     fit = np.polyval(coeffs, x)
-    baseline_amplitude = float(np.nanmax(fit[keep]) - np.nanmin(fit[keep]))
-    n_clipped = int((~keep).sum())
-
-    bmaj, bmin, _ = beam_stats(h.hdr, h.nchan)
-    ppb = pix_per_beam(h.hdr, bmaj, bmin)
-    n_beams = max((h.ny * h.nx) / ppb, 1.0)
-    sem = rms[fin] / np.sqrt(n_beams)
+    amplitude = float(np.nanmax(fit[keep]) - np.nanmin(fit[keep]))
+    sem = rms[fin] / np.sqrt(max(n_beams, 1.0))
     typical_sem = float(np.nanmedian(sem[keep]))
-
-    baseline_sigma = baseline_amplitude / typical_sem if typical_sem > 0 else np.nan
     return dict(
         available=True,
         degree=degree,
-        baseline_amplitude_jy=baseline_amplitude,
+        baseline_amplitude_jy=amplitude,
         typical_sem_jy=typical_sem,
-        baseline_sigma=baseline_sigma,
+        baseline_sigma=amplitude / typical_sem if typical_sem > 0 else np.nan,
         n_channels_used=int(fin.sum()),
-        n_clipped=n_clipped,
-        # raw arrays for optional plotting - small (nchan-length), cheap to keep
+        n_clipped=int((~keep).sum()),
+        # arrays for plotting, one value per channel used
+        channel=np.flatnonzero(fin),
         vel_kms=x,
-        freq_hz=freq,
+        freq_hz=freq_hz[fin],
         mean_jy=y,
         sem_jy=sem,
         fit_jy=fit,
         keep_mask=keep,
     )
+
+
+def baseline_check(h: CubeHandle, degree: int = 1, chunk: int = 64, n_sigma: float = 4.0) -> dict:
+    """Baseline flatness of a cube read from disk (one pass for the mean and rms)."""
+    mean, rms = per_channel_mean_rms(h, chunk=chunk)
+    bmaj, bmin, _ = beam_stats(h.hdr, h.nchan)
+    n_beams = (h.ny * h.nx) / pix_per_beam(h.hdr, bmaj, bmin)
+    return baseline_from_spectra(h.vel_kms, h.freq_hz, mean, rms, n_beams, degree, n_sigma)
 
 
 def plot_baseline(res: dict, label: str, out_png: str) -> None:

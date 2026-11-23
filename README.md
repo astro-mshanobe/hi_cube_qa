@@ -53,6 +53,8 @@ A YAML file; unspecified keys take the defaults in `src/hi_cube_qa/config.py`.
 | `radiometer.nfac` | weighting penalty on the noise: a number, or `auto` from the Briggs robust value |
 | `radiometer.flag_fraction` | `auto` (per pointing from the flag report), a number, or `null` |
 | `sensitivity.nhi_dv_kms`, `nsigma` | line width and significance of the quoted N_HI sensitivity |
+| `large_scale.*` | excess noise on large angular scales: `products` (`reference`, `all` or a list), `sigma_arcsec` (120), `stride` (20), `pb_limit`, `min_channels`, `enable` |
+| `baseline.*` | baseline flatness: `degree` (1), `sigma_clip` (4), `enable` |
 | `plots.full_resolution`, `plots.max_points` | decimation of plotted traces; the CSVs are always full resolution |
 | `output.dir`, `output.save_png` | output location; PNG export of key figures |
 
@@ -67,7 +69,7 @@ In `output.dir`:
 qa_index.html                    open this one; session sidebar
 <obsid>_qa_report.html           report per session (keep beside qa_index.html)
 <obsid>_channel_qa.csv           one row per channel per product
-<obsid>_band_summary.csv         one row per unit and product
+<obsid>_band_summary.csv         one row per unit and product (with baseline_sigma and ls_* columns)
 <obsid>_checklist.csv            checklist results
 qa_survey_summary.csv / .json    rollup over all sessions
 hi_cube_qa.log
@@ -87,9 +89,13 @@ to 1400 px; narrower windows squeeze the plots.
 Per channel, RMS / theory is Good up to 1.5, Warn up to 3 and Bad above (or not finite). A
 cube is Bad with 15% Bad channels or RMS/theory above 3, and Warn with 5% Bad channels, 20%
 Warn channels or RMS/theory above 1.5. Channels are also graded on Pearson kurtosis (Warn
-beyond 5 and Bad beyond 10 standard errors from 3), and a nine-item checklist gives
-Pass/Warn/Fail per unit. `hi-cube-qa-baseline` checks that the continuum-subtracted baseline
-is flat. These limits are conventions chosen for this toolkit, not published values. The definitions, and
+beyond 5 and Bad beyond 10 standard errors from 3), and an eleven-item checklist gives
+Pass/Warn/Fail per unit. Two of its items are checks of their own, run on every cube: baseline
+flatness (the fitted trend of the per-channel mean, in standard errors of the mean, for every
+product) and large-scale noise (the rms of channel maps smoothed to 120 arcsec against what
+neighbouring channels give for noise alone, on the reference product, the residual cube when
+there is one). Each has its own figure in the report. `hi-cube-qa-baseline` runs the baseline
+check on its own for cubes that discovery does not find, such as `imsub-line.fits`. These limits are conventions chosen for this toolkit, not published values. The definitions, and
 where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).
 
 ## Known limitations

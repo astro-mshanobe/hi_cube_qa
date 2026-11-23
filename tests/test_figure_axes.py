@@ -4,6 +4,7 @@ import numpy as np
 
 from hi_cube_qa import figures as figs
 from hi_cube_qa import report
+from hi_cube_qa.baseline_flatness import baseline_from_spectra
 
 N = 40
 CHAN = np.arange(N)
@@ -13,6 +14,18 @@ RMS = {"A": (1e-3 * np.ones(N), "#2E75B6", np.array(["Good"] * N, dtype=object))
 RMS["A"][2][5] = "Bad"
 
 
+def _baseline_result(vel):
+    mean = 1e-6 * np.sin(CHAN / 7.0)
+    rms = np.full(N, 1e-3)
+    res = baseline_from_spectra(vel, FREQ, mean, rms, n_beams=100.0)
+    assert res["available"]
+    return res
+
+
+def _large_rows():
+    return [dict(channel=int(c), ratio=1.0 + 0.01 * c) for c in (0, 10, 20, 30)]
+
+
 def _figures(vel=VEL):
     theory = 1e-3 * np.ones(N)
     per = {
@@ -20,6 +33,14 @@ def _figures(vel=VEL):
         "kurt": {"A": {"kurtosis": np.full(N, 3.0), "se": 0.1, "colour": "#2E75B6"}},
         "beam": {"A": (np.full(N, 20.0), np.full(N, 15.0), np.zeros(N), "#2E75B6")},
         "prof": {"A": {"peak": np.ones(N), "mean": np.zeros(N), "colour": "#2E75B6"}},
+        "baseline": {"A": {"result": _baseline_result(vel), "colour": "#2E75B6"}},
+        "large": {
+            "A": {
+                "summary": {"median_ratio": 1.1, "status": "Pass"},
+                "rows": _large_rows(),
+                "colour": "#2E75B6",
+            }
+        },
     }
     ref = {
         "nchan": N,
@@ -36,6 +57,8 @@ def _figures(vel=VEL):
         "nhi": (figs.fig_nhi_sensitivity(FREQ, vel, per["nhi"]), 1),
         "kurtosis": (figs.fig_kurtosis(FREQ, vel, per["kurt"]), 1),
         "beam": (figs.fig_beam_stats(FREQ, vel, per["beam"]), 2),
+        "baseline": (figs.fig_baseline(FREQ, vel, per["baseline"]), 1),
+        "large_scale": (figs.fig_large_scale(FREQ, vel, per["large"]), 1),
     }
 
 
@@ -56,8 +79,8 @@ def test_channel_ticks():
 def test_figures_plot_velocity_with_channel_hover():
     for name, (fig, _) in _figures().items():
         for trace in _data_traces(fig):
-            if trace.x is None or len(trace.x) == 0:
-                continue
+            if trace.x is None or len(trace.x) == 0 or trace.customdata is None:
+                continue  # no hover on guide lines and fits
             ch = np.asarray(trace.customdata, dtype=int)
             assert np.allclose(trace.x, VEL[ch]), name
             if trace.hovertemplate:
