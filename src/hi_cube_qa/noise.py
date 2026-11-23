@@ -3,7 +3,7 @@
 This module holds the *physics*: robust RMS, the (frequency- and flagging-
 aware) radiometer-equation prediction, and the conversion of noise to an
 HI column-density sensitivity. The heavy per-cube measurement loop lives in
-reduce.py; the small helpers here are also used directly by it.
+reduction.py; the small helpers here are also used directly by it.
 """
 
 from __future__ import annotations

@@ -13,25 +13,12 @@ import time
 
 import numpy as np
 
-from . import spectrum, wsclean_log
+from . import figures, obsinfo
 
 # Local modules
 from .config import QAConfig, load_config, write_example_config
 from .discovery import Unit, discover_flag_reports, discover_session, summarise
-from .io_utils import channel_width_hz, flag_fraction_of, load_flag_report
-from .noise import (
-    brightness_temperature,
-    channel_summary,
-    classify_channels,
-    classify_kurtosis,
-    kurtosis_expected_se,
-    nhi_sensitivity,
-    theoretical_noise_spectrum,
-)
-from .provenance import read_provenance, resolve_nfac
-from .reduce import reduce_product
-from .report import build_master_index, build_session_report, export_figs_png, png_export_available
-from .spectrum import (
+from .figures import (
     fig_band_spectrum,
     fig_beam_stats,
     fig_cumulative_rms,
@@ -45,6 +32,19 @@ from .spectrum import (
     fig_spectral_profile,
     fig_summary_table,
 )
+from .io_utils import channel_width_hz, flag_fraction_of, load_flag_report
+from .noise import (
+    brightness_temperature,
+    channel_summary,
+    classify_channels,
+    classify_kurtosis,
+    kurtosis_expected_se,
+    nhi_sensitivity,
+    theoretical_noise_spectrum,
+)
+from .provenance import read_provenance, resolve_nfac
+from .reduction import reduce_product
+from .report import build_master_index, build_session_report, export_figs_png, png_export_available
 from .tables import (
     build_expert_checklist,
     setup_logger,
@@ -177,7 +177,7 @@ def assess_unit(
 ) -> dict | None:
     """Assess one (pointing, cube_N) unit. All products share a WCS + channel grid
     and are overlaid on shared axes. Each cube is reduced in a single streaming
-    pass (reduce.py); the radiometer theory is frequency- and flagging-aware.
+    pass (reduction.py); the radiometer theory is frequency- and flagging-aware.
     """
     logger.info("-" * 60)
     logger.info(f"  Unit {unit.key}: {[p.product for p in unit.products]}")
@@ -532,7 +532,7 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
     rad = cfg.radiometer
     n_ant_cfg = rad.get("n_ant", "auto")
     if isinstance(n_ant_cfg, str) and n_ant_cfg.strip().lower() == "auto":
-        n_ant, n_ant_src = wsclean_log.read_n_ant(root)
+        n_ant, n_ant_src = obsinfo.read_n_ant(root)
         if n_ant is None:
             n_ant_src = f"{n_ant_src} -> fallback {rad.get('n_ant_fallback', 60)}"
     else:
@@ -691,11 +691,11 @@ def run(cfg: QAConfig) -> None:
     logger.info(f"Config : {cfg}")
     logger.info(f"Output : {cfg.output['dir']}")
     if cfg.plots.get("full_resolution"):
-        spectrum.set_max_plot_points(None)
+        figures.set_max_plot_points(None)
         logger.info("Plots  : full resolution (every channel)")
     else:
         mp = cfg.plots.get("max_points")
-        spectrum.set_max_plot_points(mp)
+        figures.set_max_plot_points(mp)
         logger.info(
             f"Plots  : downsampled to <= {mp} points/trace (Bad channels kept; CSVs full-res)"
         )

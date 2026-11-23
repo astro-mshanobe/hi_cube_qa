@@ -49,7 +49,7 @@ class CubeHandle:
         self.close()
 
 
-def _pix_per_beam(hdr, bmaj_arr, bmin_arr) -> float:
+def pix_per_beam(hdr, bmaj_arr, bmin_arr) -> float:
     """Pixels per synthesised beam, from the header pixel scale and median beam."""
     cdelt1 = abs(hdr.get("CDELT1", 6.0 / 3600.0))
     cdelt2 = abs(hdr.get("CDELT2", 6.0 / 3600.0))
@@ -132,7 +132,7 @@ def reduce_product(
 
         bmaj, bmin, bpa = beam_stats(hdr, nchan)
         beam_diag = beam_diagnostics(bmaj, bmin, bpa, scatter_warn_asec=scatter_warn)
-        ppb = _pix_per_beam(hdr, bmaj, bmin)
+        ppb = pix_per_beam(hdr, bmaj, bmin)
 
         rms = np.full(nchan, np.nan)
         peak = np.full(nchan, np.nan)

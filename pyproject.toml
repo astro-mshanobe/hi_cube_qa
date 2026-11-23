@@ -23,7 +23,7 @@ png = ["kaleido"]
 test = ["pytest"]
 
 [project.scripts]
-hi-cube-qa = "hi_cube_qa.main:main"
+hi-cube-qa = "hi_cube_qa.cli:main"
 hi-cube-qa-baseline = "hi_cube_qa.baseline_flatness:main"
 
 [tool.setuptools.packages.find]

@@ -6,7 +6,7 @@ from helpers import uses_tmp_path
 from synthetic import cube_header
 
 from hi_cube_qa import baseline_flatness as bf
-from hi_cube_qa.reduce import CubeHandle
+from hi_cube_qa.reduction import CubeHandle
 
 SIGMA = 1e-3
 NCHAN, NY, NX = 64, 40, 40

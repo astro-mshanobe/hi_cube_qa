@@ -111,7 +111,7 @@ def load_cube(path: str | Path) -> tuple:
 
     Handles spectral axes stored as FREQ, VELO-LSR, VOPT, or VRAD. Retained for
     callers that want the whole cube; the QA pipeline uses the streaming
-    CubeHandle in reduce.py instead.
+    CubeHandle in reduction.py instead.
     """
     path = str(path)
     with fits.open(path) as hdul:

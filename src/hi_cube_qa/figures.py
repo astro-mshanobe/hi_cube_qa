@@ -1,6 +1,6 @@
 """Plotly figures.
 
-Figures consume the compact reductions produced by reduce.py (1-D spectra),
+Figures consume the compact reductions produced by reduction.py (1-D spectra),
 never whole cubes. The theoretical-noise reference is a per-channel array
 (frequency- and flagging-aware), so it is drawn as a curve, not a flat line.
 """

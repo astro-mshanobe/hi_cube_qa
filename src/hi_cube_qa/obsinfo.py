@@ -1,18 +1,13 @@
-"""Read per-session observation parameters from CARACal's
-obsinfo summary.json.
+"""Per-session observation parameters from CARACal's obsinfo summary.json.
 
-An earlier version of this module also parsed per-channel gridded-
-visibility counts from WSClean's imaging logs, to replace the scalar
-flagged-fraction proxy with a real per-channel quantity (mirroring the
-CHILES survey's noise validation, Luber et al. 2025). That was abandoned:
-WSClean logs a generic "Gridded visibility count: <N>" line with no
-channel index, and long runs of fully-flagged channels all log the
-identical value with nothing to disambiguate "one empty channel" from
-"hundreds in a row" -- confirmed on real G23 data, where a single run of
-1442 identical log lines (versus a typical run of 4-5) made the true
-channel boundaries fundamentally unrecoverable from the log text. The
-flag-fraction theory (io_utils.flag_fraction_of) and the kurtosis
-diagnostic (noise.kurtosis_planes) remain the validated tools for this.
+Only the antenna count is read. Per-channel gridded-visibility counts from the
+WSClean imaging logs were tried as a replacement for the scalar flagged
+fraction and dropped: the log has one "Gridded visibility count" line per
+channel group with no channel index, so runs of fully flagged channels cannot
+be told apart from a single empty channel (on the G23 data one run was 1442
+identical lines against a typical 4-5). The flagged-fraction theory
+(io_utils.flag_fraction_of) and the kurtosis diagnostic (noise.kurtosis_planes)
+are used instead.
 """
 
 from __future__ import annotations

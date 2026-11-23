@@ -10,7 +10,7 @@ from astropy.io import fits
 from helpers import uses_tmp_path
 from synthetic import DF_HZ, make_session
 
-from hi_cube_qa import main as qa_main
+from hi_cube_qa import cli as qa_cli
 from hi_cube_qa import noise as nz
 
 SIGMA_JY = 1e-3
@@ -37,7 +37,7 @@ def _run(tmp_path, *extra_args, bad_channel=None):
     try:
         with contextlib.redirect_stdout(io.StringIO()) as out:
             try:
-                qa_main.main()
+                qa_cli.main()
             except SystemExit as err:
                 assert err.code in (None, 0)
     finally:

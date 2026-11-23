@@ -1,10 +1,10 @@
-"""wsclean_log: the antenna count from CARACal's obsinfo summary."""
+"""obsinfo: the antenna count from CARACal's obsinfo summary."""
 
 import json
 
 from helpers import uses_tmp_path
 
-from hi_cube_qa import wsclean_log as wl
+from hi_cube_qa import obsinfo as wl
 
 
 def _summary(root, content):

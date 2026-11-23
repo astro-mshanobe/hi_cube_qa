@@ -15,7 +15,7 @@ the mosaic that none of the single-cube checks would catch, because none of
 them look at the SHAPE of the band-averaged baseline - only its noise level
 and pixel-level outliers.
 
-This is a standalone companion script, not folded into main.py, because:
+This is a standalone companion script, not folded into the main command, because:
   - the main pipeline never persists the per-channel mean anywhere (only
     rms/quality/kurtosis are written to the per-channel CSV), so there is
     nothing to reuse after the fact - the cubes have to be re-read; and
@@ -50,7 +50,7 @@ from astropy.stats import sigma_clip
 from .beam import beam_stats
 from .config import load_config
 from .noise import mad_rms_planes
-from .reduce import CubeHandle, _pix_per_beam
+from .reduction import CubeHandle, pix_per_beam
 
 
 def per_channel_mean_rms(h: CubeHandle, chunk: int = 64):
@@ -130,7 +130,7 @@ def baseline_check(h: CubeHandle, degree: int = 1, chunk: int = 64, n_sigma: flo
     n_clipped = int((~keep).sum())
 
     bmaj, bmin, _ = beam_stats(h.hdr, h.nchan)
-    ppb = _pix_per_beam(h.hdr, bmaj, bmin)
+    ppb = pix_per_beam(h.hdr, bmaj, bmin)
     n_beams = max((h.ny * h.nx) / ppb, 1.0)
     sem = rms[fin] / np.sqrt(n_beams)
     typical_sem = float(np.nanmedian(sem[keep]))
@@ -230,7 +230,7 @@ def main():
     ap.add_argument(
         "--config",
         default="qa_G23_all_sessions.yaml",
-        help="Same YAML config used by main.py - session roots are reused",
+        help="Same YAML config as hi-cube-qa; its session roots are reused",
     )
     ap.add_argument(
         "--degree",

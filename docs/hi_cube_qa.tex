@@ -620,7 +620,7 @@ theory line reflects the actual weighting without manual bookkeeping.
 HI cubes are large (thousands of channels, $\sim$$10^3\times10^3$ pixels;
 tens of GB). Two design choices keep the toolkit fast and memory-light:
 \begin{enumerate}[noitemsep,topsep=2pt]
-  \item \textbf{Memory-mapped, chunked I/O.} \code{reduce.py} memory-maps each
+  \item \textbf{Memory-mapped, chunked I/O.} \code{reduction.py} memory-maps each
         cube and processes it in blocks of \code{reduce.chunk} channels, so only
         a few hundred MB are resident at once regardless of cube size. The whole
         cube is never held in RAM, and the per-cube peak is one chunk plus the
