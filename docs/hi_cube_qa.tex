@@ -1,0 +1,898 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{hcqa-style}
+
+\hypersetup{
+  pdftitle={hi\_cube\_qa -- A Quality-Assessment Toolkit for MeerKAT HI Spectral-Line Cubes},
+  pdfauthor={GAMA G23 MeerKAT HI Survey}
+}
+
+\begin{document}
+
+% --------------------------- title block ----------------------------------
+\begin{center}
+  {\hcqalogo[1.7]}\\[14pt]
+  {\LARGE\bfseries\ttfamily hi\_cube\_qa}\\[6pt]
+  {\large A Quality-Assessment Toolkit for MeerKAT \textsc{Hi}\ Spectral-Line Cubes}\\[10pt]
+  {\normalsize GAMA~G23 MeerKAT \textsc{Hi}\ Survey --- Data-Reduction QA}\\[2pt]
+  {\normalsize Reference Manual \quad\textbullet\quad \today}
+\end{center}
+\noindent\rule{\textwidth}{0.6pt}
+\vspace{6pt}
+
+\begin{abstract}
+\noindent
+\code{hi\_cube\_qa} is a Python toolkit that turns the spectral-line cubes
+produced by the \textsc{CARACal} pipeline \citep{jozsa2020} into a single,
+self-contained, interactive HTML quality-assessment (QA) report \emph{per
+observation session}. It auto-discovers every cube under a session's directory
+tree, measures the per-channel noise, the synthesised-beam behaviour, and the
+spectral response of each imaging product (\code{dirty}, \code{image},
+\code{residual}, \dots), compares the measured noise against the
+radiometer-equation expectation, and flags channels and cubes that fall outside
+expert-defined tolerances. This document describes the scientific motivation
+behind every metric, the exact quantities the code computes, and how to
+configure and run the toolkit. A companion \emph{Quickstart} covers the common
+workflow in two pages.
+\end{abstract}
+
+\tableofcontents
+\bigskip
+
+% ===========================================================================
+\section{Purpose and scope}
+% ===========================================================================
+Radio-interferometric \textsc{Hi}\ cubes are large ($10^2$--$10^3$ channels,
+each a $\sim$\,$10^3\times10^3$-pixel image) and their scientific usefulness is
+limited by a handful of measurable quantities: how close the achieved noise is
+to the theoretical limit, how that noise varies with frequency (revealing
+residual radio-frequency interference, RFI, and calibration errors), how stable
+the synthesised beam is across the band, and how much data the flagging stages
+removed. Inspecting these by eye, cube by cube, is slow and error-prone.
+
+\code{hi\_cube\_qa} automates that inspection. It is built for the GAMA~G23
+MeerKAT \citep{jonas2016} \textsc{Hi}\ programme, in which each observation
+\emph{session} (one correlator dump, identified by a $10$-digit block ID such as
+\code{1610268336\_sdp\_l0}) is imaged into several \emph{pointings}, each
+producing one or more spectral \emph{cubes} in several imaging \emph{products}.
+The toolkit produces one HTML report per session so that the quality of an
+entire night's imaging can be reviewed in a single document.
+
+% ===========================================================================
+\section{Data model and pipeline architecture}\label{sec:datamodel}
+% ===========================================================================
+\subsection{\texorpdfstring{The session $\to$ pointing $\to$ unit $\to$ product
+hierarchy}{The session, pointing, unit and product hierarchy}}
+\textsc{CARACal} writes its \textsc{Hi}\ output into a fixed directory layout:
+\begin{lstlisting}
+<obsid>_sdp_l0/caracal/
+    output_hi_<pXX>/                     # one imaging run per pointing
+        cubes/
+            cube_1/ G23_<obsid>_<pXX>_HI_1.<product>.fits
+            cube_2/ G23_<obsid>_<pXX>_HI.<product>.fits
+    output_hi_1gc/diagnostic_plots/      # flagging-summary JSONs
+\end{lstlisting}
+The toolkit mirrors this structure with four nested concepts:
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[Session] One \code{caracal/} root; produces exactly one HTML report.
+  \item[Pointing] One \code{output\_hi\_pXX} imaging run (e.g.\ \code{p63}).
+  \item[Unit] One \code{(pointing, cube\_N)} pair. \emph{All imaging products
+        inside a single \code{cube\_N} share the same spatial WCS and channel
+        grid}, so they are legitimately overlaid on common axes. Different
+        \code{cube\_N} (different spectral windows) are kept as separate units.
+  \item[Product] One FITS file: \code{dirty}, \code{image}, \code{residual},
+        and optionally \code{model}, \code{psf}.
+\end{description}
+This ``unit'' abstraction is the key design decision: it guarantees that every
+overlaid comparison plot mixes only cubes that genuinely share an $x$-axis,
+while still letting a single report span many pointings.
+
+\subsection{Auto-discovery (\code{discovery.py})}
+Given a session root, \code{discover\_session()} globs
+\filepath{output_hi_p*/cubes/cube_*/*.fits}, parses the imaging product from the
+filename suffix (the alphabetic token before \code{.fits}), and groups the files
+into units. The user never lists individual paths; they choose only \emph{which
+products}, and optionally which \emph{pointings} or \emph{cubes}
+(\code{cube\_N}), to keep (Section~\ref{sec:config}). By default every
+\code{cube\_N} found in each pointing becomes its own unit. Products are ordered
+consistently
+(\code{dirty}, \code{image}, \code{residual}, \code{model}, \code{psf}) so that
+plot legends and colours are stable across the whole report.
+
+\subsection{Spectral-axis and WCS handling (\code{io\_utils.py})}
+FITS cubes from \textsc{CARACal}/WSClean \citep{offringa2014} may store the
+spectral axis as frequency (\code{FREQ}, Hz) or as velocity (\code{VELO},
+\code{VRAD}, \code{VOPT}, in \si{m/s} or \si{km/s}). \code{load\_cube()} locates
+the spectral axis, reads its world-coordinate keywords, and constructs a matched
+frequency/velocity pair. The radio velocity convention is used throughout,
+\begin{equation}
+  v_{\mathrm{radio}} = c\,\frac{f_0 - f}{f_0},
+  \qquad
+  f = f_0\!\left(1 - \frac{v_{\mathrm{radio}}}{c}\right),
+  \label{eq:radio}
+\end{equation}
+with the \textsc{Hi}\ rest frequency $f_0 = \SI{1.420405752}{GHz}$ (or
+\code{RESTFRQ} from the header) and $c = \SI{2.99792458e5}{km/s}$. Optical
+velocities are converted via $f = f_0/(1+v_{\mathrm{opt}}/c)$ and then expressed
+as radio velocity for internal consistency. The channel width in hertz,
+\begin{equation}
+  \Delta\nu =
+  \begin{cases}
+    |\mathrm{CDELT}_{\mathrm{spec}}| & \text{(\code{FREQ} axis),}\\[2pt]
+    f_0\,|\Delta v|/c & \text{(velocity axis),}
+  \end{cases}
+\end{equation}
+is read directly from each cube's header and \emph{overrides} the configured
+default, so the theoretical-noise prediction (Section~\ref{sec:radiometer})
+always uses the true spectral resolution of the cube being assessed.
+
+% ===========================================================================
+\section{Noise metrics}\label{sec:noise}
+% ===========================================================================
+Noise is the single most important QA quantity for an \textsc{Hi}\ cube: it sets
+the column-density sensitivity and directly exposes calibration and RFI
+problems. The toolkit measures noise robustly, channel by channel, and compares
+it against first-principles expectations.
+
+\subsection{Robust per-channel RMS}\label{sec:madrms}
+For each spectral plane the noise is estimated with the median absolute
+deviation (MAD) rather than the ordinary standard deviation:
+\begin{equation}
+  \sigma_{\mathrm{MAD}} = 1.4826 \times \operatorname{median}_i
+  \bigl|\,x_i - \operatorname{median}(x)\,\bigr|.
+  \label{eq:mad}
+\end{equation}
+\paragraph{Why MAD.} A spectral plane contains not only noise but also real
+\textsc{Hi}\ emission, continuum sources, deconvolution residuals and RFI
+spikes. The ordinary standard deviation is dominated by these outliers and
+\emph{overestimates} the noise. The MAD is a high-breakdown-point estimator
+(up to $50\%$ of the data can be contaminated before it fails), so it returns
+the noise of the bulk of ``empty'' pixels even when bright sources are present.
+The factor $1.4826 = 1/\Phi^{-1}(3/4)$ rescales the MAD so that, for Gaussian
+noise, $\sigma_{\mathrm{MAD}}$ equals the true standard deviation; the reported
+quantity is therefore directly comparable to the radiometer prediction.
+
+\subsection{Peak per-channel amplitude}
+As a complementary tracer the code records the per-channel maximum absolute
+pixel value, $\max_{x,y}|T(x,y)|$. This is a proxy for the worst-case artefact
+or unflagged RFI spike in each channel and, divided by
+$\sigma_{\mathrm{MAD}}$, yields the dynamic range / peak signal-to-noise ratio
+used to pick diagnostic channel maps (Section~\ref{sec:thumbs}).
+
+\subsection{Boresight (best-case) noise}\label{sec:boresight}
+The full-image MAD RMS is a \emph{primary-beam-weighted average} over a field
+whose sensitivity falls towards the edges. To obtain the \emph{best-case} noise
+for comparison with theory, \code{boresight\_rms()} measures the RMS in a square
+box (default $100$ pixels) centred on the pointing centre (\code{CRPIX}), where
+the primary-beam response is highest. Source pixels are rejected with iterative
+MAD-based $\sigma$-clipping:
+\begin{enumerate}[noitemsep,topsep=2pt]
+  \item compute the median and $\sigma_{\mathrm{MAD}}$ of the surviving pixels;
+  \item reject pixels deviating by more than $\kappa\,\sigma_{\mathrm{MAD}}$
+        (default $\kappa = 3$);
+  \item repeat (default $3$ iterations).
+\end{enumerate}
+The MAD-RMS of the surviving pixels is reported per channel (the same robust
+estimator as the full-image RMS, for consistency). Because it is measured where
+the telescope is most sensitive and after outlier rejection, it is the fairest
+measured quantity to set against the radiometer limit. By default the
+\code{residual} product (if present) is used as the noise reference here, as it
+is the cleanest noise tracer (Section~\ref{sec:noiseref}). The box is read
+directly from the memory-mapped cube (Section~\ref{sec:performance}), so this
+costs no extra full-cube pass.
+
+\subsection{The radiometer-equation expectation}\label{sec:radiometer}
+The theoretical thermal noise of a single channel of an interferometric image
+\citep{tms2017} is computed by \code{theoretical\_noise()}. The
+system-equivalent flux density (SEFD) is either taken directly from the config
+or derived from the system temperature and aperture efficiency,
+\begin{equation}
+  \mathrm{SEFD} = \frac{2 k_{\mathrm B}\,T_{\mathrm{sys}}}{\eta\,A_{\mathrm{geo}}}\times 10^{26}\ \si{Jy},
+  \qquad
+  A_{\mathrm{geo}} = \pi\!\left(\frac{d}{2}\right)^{\!2},
+  \label{eq:sefd}
+\end{equation}
+with the MeerKAT dish diameter $d = \SI{13.5}{m}$, Boltzmann constant
+$k_{\mathrm B}$, and the factor $10^{26}$ converting
+\si{W.m^{-2}.Hz^{-1}}\ to \si{Jy}. The per-channel point-source noise is then
+\begin{equation}
+  \sigma_{\mathrm{theory}} =
+  \frac{n_{\mathrm{fac}}\;\mathrm{SEFD}}
+       {\sqrt{\,n_{\mathrm{bl}}\;\tau\;\Delta\nu\;n_{\mathrm{pol}}\,}},
+  \qquad
+  n_{\mathrm{bl}} = \frac{N_{\mathrm{ant}}\,(N_{\mathrm{ant}}-1)}{2},
+  \label{eq:radiometer}
+\end{equation}
+where $n_{\mathrm{bl}}$ is the number of baselines, $\tau$ the on-source
+integration time (seconds), $\Delta\nu$ the channel width (hertz),
+$n_{\mathrm{pol}} = 2$ the number of polarisations averaged, and
+$n_{\mathrm{fac}}$ a dimensionless weighting penalty (below). Equation
+(\ref{eq:radiometer}) is the standard interferometric radiometer equation. It is
+retained as a band-centre scalar for logging and for the band-averaged grade,
+but the comparison drawn against the per-channel RMS uses the
+\emph{frequency- and flagging-aware} form of the next two subsections.
+
+\paragraph{Weighting penalty $n_{\mathrm{fac}}$.} Imaging weights trade angular
+resolution against sensitivity \citep{briggs1995}: natural weighting gives the
+lowest noise, uniform the best resolution, Briggs robust interpolates. The
+penalty $n_{\mathrm{fac}}$ scales the noise above natural. It can be set
+explicitly, or \code{nfac: auto} reads the Briggs \code{robust} value from the
+header (Section~\ref{sec:provenance}) and maps it to an approximate penalty, so
+the prediction matches the weighting actually used.
+
+\paragraph{Number of antennas $N_{\mathrm{ant}}$.} Since $n_{\mathrm{bl}}$
+enters Eq.~(\ref{eq:radiometer}) as $N_{\mathrm{ant}}(N_{\mathrm{ant}}-1)/2$, a
+fixed assumed array size is a poor approximation across a multi-session
+campaign: individual sessions can differ in how many antennas were available
+(e.g.\ some offline for maintenance), and the theory should reflect the array
+that was actually used. With \code{radiometer.n\_ant: auto} (the default), the
+real per-session antenna count is read from the CARACal \code{obsinfo}
+summary's \code{ANT} field once per session; sessions without this information
+fall back to \code{n\_ant\_fallback} (default $60$). A session with $10$ fewer
+antennas than assumed changes $\sigma_{\mathrm{theory}}$ by a factor
+$\sqrt{n_{\mathrm{bl}}^{\mathrm{assumed}}/n_{\mathrm{bl}}^{\mathrm{real}}}$ --
+e.g.\ $60\to50$ antennas raises the predicted noise by $\sim\!20\%$ -- so
+getting this right matters for the RMS/theory comparison to be meaningful.
+
+\code{ANT} is keyed by MS ANTENNA-table \emph{column} name (\code{NAME},
+\code{STATION}, \code{OFFSET}, \code{POSITION}, \code{DISH\_DIAMETER},
+\code{MOUNT}, \code{TYPE}, \code{FLAG\_ROW}), each mapping to a list with one
+entry \emph{per antenna} -- confirmed directly on real G23 data, where the
+dict has exactly these $8$ top-level keys (the fixed column count) while, e.g.,
+its \code{NAME} column held $58$ entries (the real antenna count). An earlier
+version of this reader took \code{len(ANT)}, silently returning the column
+count ($8$) rather than the antenna count, and was caught only once a live run
+showed an implausible $N_{\mathrm{ant}}=8$. The reader now takes the length of
+whichever per-antenna column is present, in a fixed preference order.
+
+\subsection{Frequency-dependent SEFD}\label{sec:sefd}
+A single $T_{\mathrm{sys}}$ across the whole band is a poor approximation: the
+MeerKAT L-band SEFD has a broad minimum near \SI{1.3}{GHz} and rises towards both
+edges (and around the satellite-navigation allocations). Using a flat value
+makes the RMS-to-theory ratio spuriously large at the band edges even for good
+data. \code{sefd\_spectrum()} therefore evaluates an SEFD \emph{curve}
+$\mathrm{SEFD}(\nu)$, normalised so its band-centre value equals the
+$T_{\mathrm{sys}}/\eta$ SEFD of Eq.~(\ref{eq:sefd}) --- i.e.\ it adopts the
+\emph{shape} of the published L-band curve while keeping the user's
+$T_{\mathrm{sys}}$ as the absolute scale. The curve is configurable
+(\code{radiometer.sefd\_curve}: \code{default}, \code{flat}, or a list of
+$[\nu_{\mathrm{MHz}}, \mathrm{SEFD}_{\mathrm{Jy}}]$ points).
+
+\paragraph{Caveat.} The built-in default curve is \emph{illustrative} ---
+it captures the band shape but is not the official SARAO calibration. For
+quantitative work, supply the measured SEFD$(\nu)$ for your observations via
+\code{sefd\_curve}, or set it to \code{flat} to fall back to the single
+$T_{\mathrm{sys}}$.
+
+\subsection{Flagging-aware effective time}\label{sec:flagaware}
+RFI flagging removes visibilities, reducing the \emph{effective} on-source time
+and therefore raising the expected noise. The per-channel theory used for
+classification folds this in,
+\begin{equation}
+  \sigma_{\mathrm{theory}}(\nu) =
+  \frac{n_{\mathrm{fac}}\,\mathrm{SEFD}(\nu)}
+       {\sqrt{\,n_{\mathrm{bl}}\;\tau_{\mathrm{eff}}(\nu)\;\Delta\nu\;n_{\mathrm{pol}}\,}},
+  \qquad
+  \tau_{\mathrm{eff}}(\nu) = \tau\,\bigl(1 - f_{\mathrm{flag}}(\nu)\bigr).
+  \label{eq:theoryflag}
+\end{equation}
+A heavily-flagged sub-band is then \emph{expected} to be noisier, so the
+RMS/theory comparison no longer penalises channels for flagging that already
+happened. The noise-overview plot shows both the flat and the flagging-reduced
+theory curves so the effect is explicit.
+
+\paragraph{Per-pointing matching.} The CARACal flag reports are written
+\emph{per pointing}, with the pointing id encoded in the filename (e.g.\ a
+\code{p20} \code{target\_summary} report). With \code{flag\_fraction: auto} the
+toolkit reads the overall flagged fraction from each pointing's
+\code{target\_summary} report. The CARACal report is a \code{Flag stats} list of
+categories (\code{scans}, \code{antennas}, \code{fields}, \code{corrs}), each
+partitioning the same data into entries carrying \code{sum} (flagged) and
+\code{counts} (total); the overall fraction is
+$\sum\code{sum}/\sum\code{counts}$ over any one category. That fraction is
+applied to \emph{that pointing's} cubes; pointings without a report fall back to
+the session median. A fixed number or \code{null} disables the per-pointing behaviour, and
+each unit's fraction is shown in its provenance strip.
+
+\paragraph{Caveat.} The flag fractions are still \emph{scalar} per pointing, not
+a per-channel flag spectrum, so the reduction in $\tau_{\mathrm{eff}}$ is
+uniform across the band within a pointing. A genuine $f_{\mathrm{flag}}(\nu)$
+would require the flag cube from the measurement set, which is not among these
+products.
+
+\paragraph{Automatic discovery.} Flag reports are found per session by globbing
+\code{flagreport\_glob} relative to the session root; the default matches
+\code{output\_hi\_1gc/diagnostic\_plots/}. If that finds nothing (a session
+with a different layout), discovery falls back to progressively broader globs
+(\code{output\_hi\_*gc/}, any \code{output\_hi\_*/diagnostic\_plots/}, then a
+recursive search), so no per-session configuration is needed. The matched
+pattern is logged, and a session with no flags found degrades gracefully (the
+theory is simply not flag-reduced).
+
+\subsection{Real per-channel data loss: investigated, abandoned}\label{sec:nvislog}
+The scalar flagged fraction of Section~\ref{sec:flagaware} is a coarse proxy:
+it reduces $\tau_{\mathrm{eff}}$ uniformly across the whole band, whereas real
+RFI is concentrated in specific sub-bands. Since CARACal's per-pointing
+imaging step invokes WSClean \citep{offringa2014} once per cube, covering the
+full channel range, and WSClean logs a line
+\begin{quote}\ttfamily Gridded visibility count: \textless N\textgreater\end{quote}
+each time it (re-)grids a channel, this looked like a route to a genuine
+per-channel data-loss quantity -- exactly what the CHILES survey uses for its
+own noise validation \citep{luber2025} -- read directly from the pipeline's own
+logs rather than a separate measurement.
+
+This was implemented and then withdrawn after testing against real G23 data.
+WSClean's message is generic and carries no channel index, so a parser must
+infer channel boundaries from where the logged value \emph{changes}. That
+assumption holds for a short sample, but breaks down over a full band: a
+contiguous run of fully-flagged channels can log the identical value for
+hundreds of consecutive lines, with nothing in the log to distinguish "one
+empty channel" from "many in a row." On a real 4783-channel cube, the typical
+run length was 4--5 lines, but one run reached $1442$ -- two orders of
+magnitude larger than anything else -- silently collapsing what was almost
+certainly dozens to hundreds of distinct channels into one. This is not a
+parsing bug fixable with a smarter heuristic; the information needed to
+disambiguate is simply absent from the log text. The flagged-fraction theory
+of Section~\ref{sec:flagaware} and the kurtosis diagnostic
+(Section~\ref{sec:kurtosis}) remain the validated tools for this purpose.
+
+\subsection{Per-channel quality classification}\label{sec:classify}
+Each channel is labelled \textsf{Good}, \textsf{Warn} or \textsf{Bad} by
+\code{classify\_channels()} from the ratio of its measured RMS to a reference.
+If a valid theoretical noise is available it is the reference; otherwise the
+band-median RMS is used (so the tool still works without radiometer inputs).
+With warn/bad factors $w = 1.5$ and $b = 3.0$ (configurable),
+\begin{equation}
+  \text{channel}\ i \rightarrow
+  \begin{cases}
+    \textsf{Bad}  & \sigma_i\ \text{non-finite, or}\ \sigma_i/\sigma_{\mathrm{ref}} > b,\\
+    \textsf{Warn} & w < \sigma_i/\sigma_{\mathrm{ref}} \le b,\\
+    \textsf{Good} & \sigma_i/\sigma_{\mathrm{ref}} \le w.
+  \end{cases}
+\end{equation}
+A non-finite RMS marks a fully flagged or empty plane as \textsf{Bad}. The
+band-level summary (\code{channel\_summary()}) aggregates these into counts and
+percentages and assigns an overall cube grade:
+\begin{equation}
+  \text{cube} \rightarrow
+  \begin{cases}
+    \textsf{Bad}  & f_{\mathrm{bad}} \ge 15\%\ \text{or}\ R > 3,\\
+    \textsf{Warn} & f_{\mathrm{bad}} \ge 5\%\ \text{or}\ f_{\mathrm{warn}} \ge 20\%\ \text{or}\ R > 1.5,\\
+    \textsf{Good} & \text{otherwise,}
+  \end{cases}
+\end{equation}
+where $f_{\mathrm{bad}}$, $f_{\mathrm{warn}}$ are the bad/warn channel fractions
+and $R$ is the band-averaged RMS-to-theory ratio (the median over the
+\textsf{Good} channels, or over all finite channels if none are Good, divided by
+$\sigma_{\mathrm{theory}}$).
+
+\paragraph{Interpreting $R\sim1.5$.} A ratio somewhat above unity is normal, not
+a fault: real MeerKAT \textsc{Hi}\ imaging typically achieves $\sim1.2$--$1.5$
+times the thermal prediction because of residual calibration errors, confusion,
+and imaging losses not captured by the idealised radiometer equation. A whole
+band sitting at $R\sim1.5$ (many \textsf{Warn} channels) is therefore expected
+for good data; it is a \emph{large} excess or a rising/structured RMS spectrum
+that signals a real problem. If \emph{every} channel is \textsf{Warn}/\textsf{Bad}
+the median RMS falls back to all finite channels (rather than reporting nothing),
+so a uniformly noisy but valid cube still reports its true noise.
+
+\subsection{Why the residual is the noise reference}\label{sec:noiseref}
+For the noise-overview comparison, the boresight, the 2-D maps and the
+band-averaged grade the toolkit prefers, in order, \code{residual} $\to$
+\code{dirty} $\to$ \code{image}.
+The \code{residual} cube is the dirty image minus the restored clean model: it
+contains the thermal noise plus un-deconvolved sidelobes but \emph{not} the
+clean components, making it the closest available estimate of the true noise
+floor. The \code{image} cube, by contrast, contains restored source flux that
+can bias a naive RMS upward; it is still measured and displayed, but is not used
+as the noise yardstick.
+
+% ===========================================================================
+\section{Synthesised-beam diagnostics}\label{sec:beam}
+% ===========================================================================
+The synthesised beam (point-spread function) determines the angular resolution
+and the conversion between surface brightness (\jybeam) and flux density (Jy).
+For wide-band \textsc{Hi}\ imaging the beam changes with frequency, and a beam
+that varies erratically across the band signals deconvolution or $uv$-coverage
+problems. \code{beam\_stats()} reads the beam from the FITS header, supporting
+three conventions in priority order:
+\begin{enumerate}[noitemsep,topsep=2pt]
+  \item single global \code{BMAJ}/\code{BMIN}/\code{BPA} keywords, broadcast to
+        all channels;
+  \item per-channel WSClean keywords \citep{offringa2014} (\code{BMAJ0000}\dots,
+        zero-padded $0$-indexed; or \code{BMAJ1}\dots, $1$-indexed, with
+        $8$-character FITS keyword truncation handled, e.g.\ \code{BMA1});
+  \item a \code{BEAMTABLE} binary extension (reserved; currently falls through
+        to a warning).
+\end{enumerate}
+From the per-channel major/minor axes ($\theta_{\mathrm{maj}}$,
+$\theta_{\mathrm{min}}$, arcsec) and position angle, \code{beam\_\allowbreak diagnostics()}
+reports the band medians and scatter, the beam solid angle
+\begin{equation}
+  \Omega_{\mathrm{beam}} = \frac{\pi}{4\ln 2}\,\theta_{\mathrm{maj}}\,\theta_{\mathrm{min}},
+  \label{eq:beamarea}
+\end{equation}
+(the integral of a 2-D Gaussian of these FWHMs), and the axial ratio
+$\theta_{\mathrm{maj}}/\theta_{\mathrm{min}}$. A channel-to-channel standard
+deviation of $\theta_{\mathrm{maj}}$ exceeding $\SI{0.5}{arcsec}$ (configurable)
+raises a beam-stability warning, since a large scatter undermines a common
+restoring beam and complicates moment analysis.
+
+% ===========================================================================
+\section{Non-Gaussianity: per-channel kurtosis}\label{sec:kurtosis}
+% ===========================================================================
+The RMS-based checks of Section~\ref{sec:noise} test only the \emph{second
+moment} of the pixel distribution: a channel can have a perfectly acceptable
+RMS while its distribution is heavily non-Gaussian, e.g.\ a small number of
+extreme outlier pixels from residual RFI or incomplete continuum subtraction.
+Following the validation approach of the CHILES survey \citep{luber2025}, the
+toolkit therefore also computes the \emph{fourth moment} -- the Pearson
+kurtosis -- per channel, as an independent shape diagnostic:
+\begin{equation}
+  \kappa = \frac{\left\langle (x-\mu)^4\right\rangle}{\left\langle (x-\mu)^2\right\rangle^2},
+  \label{eq:kurtosis}
+\end{equation}
+using the \emph{ordinary} mean $\mu$ and variance (not the robust MAD
+statistics used elsewhere in this toolkit) -- kurtosis exists specifically to
+be sensitive to outliers and tails, so a robust, outlier-resistant estimator
+would defeat its purpose. A Gaussian distribution has $\kappa = 3$ in this
+convention (matching \citealt{luber2025}); values above $3$ (leptokurtic)
+indicate heavier tails than Gaussian, values below (platykurtic) indicate
+fewer extreme values than expected.
+
+\subsection{Significance and the beam-correlation correction}
+Under normality, the sampling variance of $\kappa$ is approximately $24/N$ for
+$N$ \emph{independent} samples. Neighbouring pixels within a synthesised beam
+are correlated, however, so the number of independent samples is not the raw
+pixel count but the number of independent \emph{resolution elements},
+$N_{\mathrm{eff}} = N_{\mathrm{pix}}/n_{\mathrm{pb}}$ (pixels per beam,
+Section~\ref{sec:bandspec}). The toolkit therefore uses
+\begin{equation}
+  \mathrm{SE}(\kappa) = \sqrt{\frac{24}{N_{\mathrm{eff}}}},
+  \label{eq:kurtosisse}
+\end{equation}
+and classifies a channel as \textsf{Warn} or \textsf{Bad} when $|\kappa - 3|$
+exceeds $5$ or $10$ standard errors, respectively
+(\code{thresholds.kurtosis\_\allowbreak warn\_sigma},
+\code{kurtosis\_\allowbreak bad\_sigma}).
+\emph{Caveat:} \citet{luber2025} state an
+expected kurtosis variation of $0.004$ for their data, which by
+Eq.~(\ref{eq:kurtosisse}) implies $N_{\mathrm{eff}} \approx 1.5\times10^6$ --
+suspiciously close to their raw $1200\times1200$ pixel count. This suggests
+their published uncertainty may not itself carry the beam-correlation
+correction applied here; the toolkit's threshold is therefore intentionally
+more conservative (wider SE, so fewer false positives) than a literal reading
+of that reference value would give.
+
+\subsection{Cross-referencing with the RMS check}
+The most useful result is not the kurtosis curve alone but its
+\emph{combination} with the RMS/theory check: for every product, the toolkit
+counts channels that are \textsf{Bad} on kurtosis but \textsf{Good} on RMS
+(non-Gaussian contamination the RMS check cannot see), channels \textsf{Bad} on
+both (genuinely catastrophic channels), and channels \textsf{Bad} on RMS but
+still Gaussian (e.g.\ a fully flagged plane). This mirrors
+\citeauthor{luber2025}'s own central finding -- that their RMS ratio flagged a
+narrow RFI-dominated sub-band while kurtosis revealed mild non-Gaussianity
+across the \emph{entire} band -- two different failure modes that only appear
+together in the cross-reference. The counts are logged per unit and appear as
+the \textsf{Gaussian noise (kurtosis)} checklist criterion's note field.
+
+% ===========================================================================
+\section{Spectral products}\label{sec:spectral}
+% ===========================================================================
+\subsection{Spectral profile: peak and mean}
+\code{fig\_spectral\_profile()} plots, per channel, the peak
+($\max_{x,y}|T|$) and mean flux. The peak trace highlights bright emission or
+artefacts; the mean trace (typically at the \si{\micro Jy}\ level) is sensitive
+to large-scale additive errors such as continuum-subtraction residuals or
+baseline ripples.
+
+\subsection{Integrated band spectrum}\label{sec:bandspec}
+The spatially integrated flux-density spectrum converts the cube from surface
+brightness to flux density. With pixel solid angle
+$\Omega_{\mathrm{pix}} = |\mathrm{CDELT}_1|\,|\mathrm{CDELT}_2|$ (in steradian)
+and beam solid angle $\Omega_{\mathrm{beam}}$ from Eq.~(\ref{eq:beamarea}), the
+number of pixels per beam is $n_{\mathrm{pb}} = \Omega_{\mathrm{beam}}/\Omega_{\mathrm{pix}}$, and
+\begin{equation}
+  S_{\mathrm{int}}(\nu) = \frac{1}{n_{\mathrm{pb}}}\sum_{x,y} T(x,y,\nu)
+  \quad[\si{Jy}].
+  \label{eq:sint}
+\end{equation}
+Dividing the summed \jybeam\ by $n_{\mathrm{pb}}$ removes the multiple-counting
+of flux that is spread over many pixels within one beam, yielding a true flux
+density. The uncertainty envelope on the integrated spectrum is propagated from
+the per-channel noise over the typical number of finite pixels $N_{\mathrm{pix}}$,
+\begin{equation}
+  \sigma_{\mathrm{int}} = \sigma_{\mathrm{MAD}}\sqrt{\frac{N_{\mathrm{pix}}}{n_{\mathrm{pb}}}},
+\end{equation}
+and $\pm1\sigma$ and $\pm3\sigma$ bands are shaded. The plot carries a dual
+abscissa (radio velocity and frequency, related by Eq.~\ref{eq:radio}) and can
+mark a target redshift $z$. The marker is placed at the correct \emph{radio}
+velocity of the line, $v = cz/(1+z)$ (with $f = f_0/(1+z)$); using the naive
+$v = cz$ would misplace it by a factor $(1+z)$ --- a few hundred \si{km/s} at the
+$G23$ redshifts.
+
+\subsection{Diagnostic channel maps}\label{sec:thumbs}
+Rather than rendering every channel, \code{thumbnails.py} shows a small set of
+\emph{diagnostic} channel images chosen on two physical axes
+(\code{thumbnails.selectors}):
+\begin{itemize}[noitemsep,topsep=2pt]
+  \item \textbf{by RMS} --- the cleanest (minimum), typical (median) and
+        noisiest (maximum) channels, exposing the best and worst noise
+        behaviour and any catastrophic planes;
+  \item \textbf{by SNR} --- the strongest (peak), typical (median) and weakest
+        (minimum) signal-to-noise channels, where
+        $\mathrm{SNR} = \max_{x,y}|T|/\sigma_{\mathrm{MAD}}$, letting the user
+        eyeball the most significant detection in the cube.
+\end{itemize}
+Channels selected by more than one criterion are shown once, annotated with all
+the reasons they were chosen. Each map is displayed with a fixed
+$[-3\sigma, +5\sigma]$ stretch (from the band-median RMS), a beam ellipse, and a
+quality badge, so panels are directly comparable. This keeps reports small while
+still surfacing exactly the channels a reviewer needs to see.
+
+% ===========================================================================
+\section{HI column-density sensitivity}\label{sec:nhi}
+% ===========================================================================
+Sensitivity is far more interpretable in HI science as a column-density limit
+than in \mjybeam. The per-channel noise is converted to a brightness
+temperature via the Rayleigh--Jeans, Gaussian-beam relation
+\begin{equation}
+  T_{\mathrm B} = 1.222\times10^{3}\;
+  \frac{S\,[\si{mJy.beam^{-1}}]}{\nu^2[\si{GHz}]\;\theta_{\mathrm{maj}}["]\,\theta_{\mathrm{min}}["]}\ \ [\si{K}],
+  \label{eq:tb}
+\end{equation}
+and then to an HI column density through
+$N_{\mathrm{HI}} = 1.823\times10^{18}\!\int T_{\mathrm B}\,\mathrm{d}v$
+($\si{cm^{-2}}$, optically thin). The toolkit reports the $n\sigma$ (default
+$3\sigma$) column-density sensitivity both per channel,
+\begin{equation}
+  N_{\mathrm{HI}}^{\,n\sigma}(\text{chan}) =
+  1.823\times10^{18}\; n\; T_{\mathrm B}(\sigma)\;\delta v,
+\end{equation}
+and integrated over a line of width $\Delta v$ (default \SI{20}{km/s}), where
+adding $\Delta v/\delta v$ independent channels gives
+\begin{equation}
+  N_{\mathrm{HI}}^{\,n\sigma}(\Delta v) =
+  1.823\times10^{18}\; n\; T_{\mathrm B}(\sigma)\;\sqrt{\delta v\,\Delta v}\,,
+  \label{eq:nhi}
+\end{equation}
+with $\delta v$ the channel width in velocity. The per-channel sensitivity is
+plotted as a spectrum, and the integrated $3\sigma$ limit appears in the summary
+table, the band CSV and the survey rollup. Line width $\Delta v$ and $n$ are set
+by \code{sensitivity.nhi\_dv\_kms} and \code{sensitivity.nsigma}.
+
+% ===========================================================================
+\section{Spatial diagnostic maps and continuum residuals}\label{sec:maps}
+% ===========================================================================
+A single number per channel hides position-dependent problems. For the
+noise-reference product the reducer accumulates, in the same streaming pass, two
+2-D maps:
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[Noise map] the per-pixel standard deviation \emph{across channels}.
+        Calibration ripples, solar interference and residual sidelobe structure
+        show up as spatial patterns that the band-median RMS cannot reveal.
+  \item[Continuum-persistence map] for each pixel, the fraction of channels in
+        which it exceeds $\kappa\sigma$ of that channel's robust noise
+        (\code{continuum.sigma}, default $\kappa=3$). Thermal noise is exceeded
+        in only a few percent of channels; a pixel significant in a \emph{large}
+        fraction of channels is a continuum source that survived continuum
+        subtraction. The headline scalar --- the percentage of pixels persistent
+        in $>50\%$ of channels --- is a direct continuum-subtraction-quality
+        indicator and drives a checklist criterion (Section~\ref{sec:checklist}).
+\end{description}
+If a cube is primary-beam corrected (detected from \code{BUNIT}/filename), the
+report flags that its noise is position-dependent and the single-number RMS is
+only indicative.
+
+% ===========================================================================
+\section{Imaging provenance}\label{sec:provenance}
+% ===========================================================================
+\code{provenance.py} reads how each cube was made from the FITS header and
+\code{HISTORY}: the Briggs \code{robust} value (\code{WSCWEIGH} keyword or the
+\code{-weight briggs} history token), \code{niter}, threshold, restoring beam,
+and observation metadata (\code{TELESCOP}, \code{OBJECT}, \code{DATE-OBS},
+\code{BUNIT}). These are stamped on each unit so a reviewer can see the imaging
+settings at a glance. When \code{radiometer.nfac: auto}, the robust value is
+mapped to an approximate weighting penalty (Section~\ref{sec:radiometer}), so the
+theory line reflects the actual weighting without manual bookkeeping.
+
+% ===========================================================================
+\section{Performance and memory}\label{sec:performance}
+% ===========================================================================
+HI cubes are large (thousands of channels, $\sim$$10^3\times10^3$ pixels;
+tens of GB). Two design choices keep the toolkit fast and memory-light:
+\begin{enumerate}[noitemsep,topsep=2pt]
+  \item \textbf{Memory-mapped, chunked I/O.} \code{reduce.py} memory-maps each
+        cube and processes it in blocks of \code{reduce.chunk} channels, so only
+        a few hundred MB are resident at once regardless of cube size. The whole
+        cube is never held in RAM, and the per-cube peak is one chunk plus the
+        2-D accumulators.
+  \item \textbf{Vectorised statistics.} the per-channel MAD-RMS, peak, mean,
+        integrated flux, 2-D maps and continuum counts are computed with
+        \textsc{NumPy} reductions over each block, replacing the previous
+        Python-level per-channel loop. In practice this is roughly one to two
+        orders of magnitude faster.
+\end{enumerate}
+A single streaming pass yields all the 1-D spectra and 2-D maps; the diagnostic
+channel planes and the boresight box are then read individually from the memory
+map, so no second full pass is needed.
+
+\paragraph{Plot resolution (downsampled vs full).} An HI cube can have several
+thousand channels, and drawing every point of every trace makes the interactive
+HTML large and sluggish (tens of MB per session). By default the line plots are
+therefore \emph{decimated} to at most \code{plots.max\_points} points per trace
+(default $2000$): a uniform stride over channels, but with \emph{every Bad
+channel kept} so outliers are never hidden. This affects only the on-screen
+plots --- the CSV tables and all statistics are computed at full spectral
+resolution. The user chooses between the two versions: the downsampled default,
+or a full-resolution report via \code{plots.full\_resolution: true} in the config
+or the \code{-{}-full-res} command-line flag (with \code{-{}-downsample} to force
+the default). The active mode is logged at the start of the run.
+
+% ===========================================================================
+\section{Flagging summary}\label{sec:flags}
+% ===========================================================================
+\textsc{CARACal} writes per-stage flagging-summary JSON files (band-pass and
+gain calibrators, static masks, per-pointing RFI, etc.). \code{hi\_cube\_qa}
+globs these per session (\code{flagreport\_glob}), recursively extracts every
+flagged fraction, and renders a horizontal bar chart colour-coded against
+warning ($>10\%$) and severe ($>30\%$) thresholds. The same report also drives
+the effective-time reduction in the per-channel theory
+(Eq.~\ref{eq:theoryflag}, Section~\ref{sec:flagaware}), so this panel is shown
+once at the session level alongside the per-cube noise diagnostics.
+
+% ===========================================================================
+\section{The expert checklist}\label{sec:checklist}
+% ===========================================================================
+For each cube product the toolkit evaluates a fixed set of pass/warn/fail
+criteria (\code{build\_\allowbreak expert\_\allowbreak checklist()}), summarising the figures into an
+at-a-glance verdict. Table~\ref{tab:checklist} lists the criteria and their
+scientific rationale.
+
+\begin{longtable}{@{}L{0.30\textwidth} L{0.34\textwidth} L{0.30\textwidth}@{}}
+\caption{Expert QA criteria and their justification.}\label{tab:checklist}\\
+\toprule
+\textbf{Criterion} & \textbf{Test} & \textbf{Why it matters}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Criterion} & \textbf{Test} & \textbf{Why it matters}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Noise within $1.5\times$ theory &
+$R < 1.5$ pass, $<3$ warn, else fail &
+The achieved sensitivity should approach the radiometer limit; a large excess
+indicates calibration loss, RFI, or wrong weighting assumptions.\\[2pt]
+Few bad channels ($<5\%$) &
+$f_{\mathrm{bad}} < 5\%$ pass, $<15\%$ warn &
+A small fraction of unusable channels is normal (band edges, persistent RFI);
+a large fraction erodes the usable bandwidth.\\[2pt]
+No catastrophic loss ($<15\%$ bad) &
+$f_{\mathrm{bad}} < 15\%$ pass, else fail &
+Beyond $\sim15\%$ the cube is compromised for line science.\\[2pt]
+Noise-floor convergence &
+median RMS of the last $10\%$ of channels vs.\ the first $90\%$:
+$<1.2$ pass, $<2$ warn &
+The noise should be stable across the band; a rising floor at the band edge
+flags bandpass roll-off or edge RFI.\\[2pt]
+Beam stability &
+$\operatorname{std}(\theta_{\mathrm{maj}}) < \SI{0.5}{arcsec}$ pass &
+A strongly varying beam prevents a common restoring beam and biases moment
+maps.\\[2pt]
+Reasonable axial ratio &
+$\theta_{\mathrm{maj}}/\theta_{\mathrm{min}} < 2$ pass, $<3$ warn &
+A highly elongated beam signals poor $uv$-coverage or a low-elevation track.\\[2pt]
+No severe RMS outliers &
+no channel $> 5\times$ the median RMS (0 pass, $<5$ warn) &
+Isolated high-RMS channels are usually unflagged RFI spikes.\\[2pt]
+Low continuum residual &
+$<0.5\%$ of pixels significant in $>50\%$ of channels pass, $<2\%$ warn &
+Pixels bright in most channels are continuum sources surviving continuum
+subtraction (Section~\ref{sec:maps}).\\[2pt]
+Gaussian noise (kurtosis) &
+$<5\%$ of channels $>5\sigma_{\kappa}$ from 3 pass, $<15\%$ warn &
+Non-Gaussian channels (residual RFI, incomplete continuum subtraction) that the
+RMS check alone cannot see (Section~\ref{sec:kurtosis}).\\
+\end{longtable}
+
+% ===========================================================================
+\section{Configuration reference}\label{sec:config}
+% ===========================================================================
+A run is driven by a single YAML file. The toolkit ships a fully commented
+template, regenerated with \code{python3 main.py -{}-example-config}. A
+representative configuration:
+
+\begin{lstlisting}
+output:
+    dir: ./qa_output        # one <obsid>_*.html / .csv set per session
+    html: true
+    csv:  true
+    log:  true
+
+sessions:                   # each root -> one HTML report
+    - root: /idia/projects/uct-mega-hi/G23/1610268336_sdp_l0/caracal
+    - root: /idia/projects/uct-mega-hi/G23/1609151470_sdp_l0/caracal
+
+products: [dirty, image, residual]   # default three; or 'all'; or any subset
+pointings: null             # null = all; or e.g. [p63, p64]
+cubes: null                 # null/'all' = every cube_N; or e.g. [cube_1] / [1]
+
+flagreport_glob: output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json
+
+radiometer:
+    sefd:    null           # Jy; if null, derived from tsys/eta
+    tsys:    25.0           # K  (MeerKAT L-band typical)
+    eta:     0.80           # aperture efficiency
+    n_ant:          auto    # real per-session count from obsinfo; or a fixed number
+    n_ant_fallback: 60      # used only if 'auto' finds nothing
+    t_total: 1.0            # ON-SOURCE hours -- set to the real track length
+    df:      26367.19       # Hz; auto-overridden per cube from the header
+    nfac:    1.7            # weighting penalty, or 'auto' (from header robust)
+    sefd_curve:    default  # 'default' freq curve | 'flat' | [[MHz,Jy],...]
+    flag_fraction: auto     # fold flagging into theory: 'auto' | number | null
+
+spectral:
+    z_source: null          # e.g. 0.05 to mark a target redshift
+
+sensitivity:
+    nhi_dv_kms: 20.0        # quote 3-sigma N_HI over this line width
+    nsigma:     3.0
+
+continuum:
+    sigma: 3.0              # per-channel threshold for the persistence map
+
+reduce:
+    chunk: 64               # channels read per block (memory/speed)
+    maps:  true             # render 2-D noise + continuum maps
+
+thumbnails:
+    selectors: [rms, snr]   # diagnostic-channel selectors
+
+boresight:
+    enable: true
+    box_size: 100           # pixels, centred on CRPIX
+    centre_pix: null        # null -> use header pointing centre
+    sigma_clip: 3.0
+    clip_iterations: 3
+
+thresholds:
+    rms_warn_factor:   1.5
+    rms_bad_factor:    3.0
+    bad_chan_warn_pct: 5.0
+    bad_chan_bad_pct:  15.0
+    beam_scatter_warn: 0.5
+    flag_warn_pct:     10.0
+    flag_bad_pct:      30.0
+    kurtosis_warn_sigma: 5.0   # |kurtosis-3| > N standard errors -> Warn
+    kurtosis_bad_sigma:  10.0  # |kurtosis-3| > N standard errors -> Bad
+\end{lstlisting}
+
+\noindent\textbf{Important:} \code{radiometer.t\_total} is the \emph{on-source}
+integration time and directly scales $\sigma_{\mathrm{theory}}$ via
+Eqs.~(\ref{eq:radiometer},~\ref{eq:theoryflag}); it must be set to the real
+track length for the theory comparison to be meaningful. The channel width
+\code{df} is auto-read from each cube and need not be exact in the config.
+
+% ===========================================================================
+\section{Outputs}\label{sec:outputs}
+% ===========================================================================
+Written into \code{output.dir}:
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[\code{qa\_index.html}] \textbf{The master entry point.} A small shell
+        page with a session sidebar; selecting a session loads its report on
+        demand in a frame, so the master stays a few kilobytes and remains
+        responsive however many sessions are present. The per-session reports
+        must remain in the same directory (they are referenced by relative
+        name). Open this file to browse everything.
+  \item[\code{<obsid>\_qa\_report.html}] One interactive report per session: a
+        pointing navigation bar, a session overview table, one block per
+        \code{(pointing, cube\_N)} unit (provenance strip, summary table with
+        $N_{\mathrm{HI}}$, RMS curves with the per-channel theory curve,
+        RMS/theory ratio, cumulative RMS, RMS histogram, a noise-overview panel
+        (boresight/median/peak against the flat and flagging-reduced theory
+        curves), the per-channel kurtosis panel (Section~\ref{sec:kurtosis}),
+        spectral profile, integrated band spectrum, $N_{\mathrm{HI}}$
+        sensitivity spectrum, beam statistics, the 2-D noise and continuum
+        maps, diagnostic channel maps, and the per-unit checklist), and a
+        session-level flagging chart. Plotly
+        \citep{plotly} loads once from CDN; all images are embedded as base-64
+        PNGs, so the file is self-contained.
+  \item[\code{<obsid>\_channel\_qa.csv}] One row per channel per product:
+        frequency, velocity, RMS, RMS/theory, quality, kurtosis, and beam
+        parameters.
+  \item[\code{<obsid>\_band\_summary.csv}] One row per unit/product with the
+        band-level noise, $N_{\mathrm{HI}}$ sensitivity, continuum-persistence,
+        kurtosis (\code{pct\_bad\_kurtosis}, \code{pct\_warn\_kurtosis}) and beam
+        statistics.
+  \item[\code{<obsid>\_checklist.csv}] The expert-checklist verdicts.
+  \item[\code{qa\_survey\_summary.\{json,csv\}}] A \textbf{survey-level rollup}:
+        one row per unit/product across \emph{all} sessions (median RMS,
+        RMS/theory, $N_{\mathrm{HI}}$, continuum, PB-correction flag, grade), for
+        tracking quality over the whole campaign.
+  \item[\code{pngs/<obsid>/<pointing>\_<cube>\_<figure>.png}] When
+        \code{output.save\_png} is set, the key figures (configurable via
+        \code{output.png\_figures}) are also written as standalone PNGs for
+        slides and logbooks. This needs the \code{kaleido} package with a
+        working Chromium underneath it (both can be true even when
+        \code{kaleido} is \emph{installed}, e.g.\ a version mismatch with
+        Plotly, or a sandboxed HPC/Singularity environment) -- a functional
+        probe render is attempted once at the start of the run, and if it
+        fails, PNG export is disabled for the entire run with a single clear
+        log message rather than repeating the same failed attempt once per
+        session; the \code{pngs/} directory is then never created at all,
+        rather than being left behind empty. Figures containing named HTML
+        entities (e.g.\ \code{\&sigma;}, resolved correctly by any real
+        browser for the HTML report) are exported to PNG using a sanitised
+        copy with the literal Unicode character substituted, since Kaleido's
+        renderer does not reliably resolve them and would otherwise fail that
+        figure specifically. None of this affects the interactive HTML, which
+        renders independently in the browser.
+  \item[\code{hi\_cube\_qa.log}] The full run log.
+\end{description}
+
+% ===========================================================================
+\section{Running the toolkit}\label{sec:running}
+% ===========================================================================
+\paragraph{Preview (no heavy compute).} List exactly which units and products
+will be assessed:
+\begin{lstlisting}
+python3 main.py --config qa_G23_all_sessions.yaml --list
+\end{lstlisting}
+\paragraph{Full run, locally.}
+\begin{lstlisting}
+python3 main.py --config qa_G23_all_sessions.yaml
+python3 main.py --config qa_G23_all_sessions.yaml --full-res   # every channel
+\end{lstlisting}
+\paragraph{On the cluster (Slurm + Singularity).}
+\begin{lstlisting}
+sbatch run_qa.sh                  # uses qa_G23_all_sessions.yaml
+sbatch run_qa.sh my_config.yaml   # or a custom config
+\end{lstlisting}
+Cubes are loaded one unit at a time, so peak memory is a few cubes rather than a
+whole session. The toolkit is built on \code{numpy} \citep{harris2020},
+\code{scipy} \citep{virtanen2020}, \code{astropy} \citep{astropy2022},
+\code{matplotlib} \citep{hunter2007} and \code{plotly} \citep{plotly} (all
+present in the ILIFU \code{ASTRO-PY3.12} container).
+
+% ===========================================================================
+\appendix
+\section{Symbol glossary}\label{app:symbols}
+% ===========================================================================
+\begin{longtable}{@{}l L{0.74\textwidth}@{}}
+\toprule
+\textbf{Symbol} & \textbf{Meaning}\\
+\midrule
+\endhead
+$\sigma_{\mathrm{MAD}}$ & Robust per-channel RMS noise, Eq.~(\ref{eq:mad}).\\
+$\sigma_{\mathrm{theory}}(\nu)$ & Per-channel radiometer noise, frequency- and flagging-aware, Eq.~(\ref{eq:theoryflag}).\\
+$R$ & Band-averaged RMS-to-theory ratio (median \textsf{Good}-channel RMS over $\sigma_{\mathrm{theory}}$).\\
+$\mathrm{SEFD}(\nu)$ & System-equivalent flux density vs frequency, Eq.~(\ref{eq:sefd}) and Section~\ref{sec:sefd}.\\
+$f_{\mathrm{flag}}(\nu)$, $\tau_{\mathrm{eff}}$ & Flagged fraction and flagging-reduced effective time, Eq.~(\ref{eq:theoryflag}).\\
+$T_{\mathrm B}$, $N_{\mathrm{HI}}$ & Brightness temperature and HI column density, Eqs.~(\ref{eq:tb},~\ref{eq:nhi}).\\
+$T_{\mathrm{sys}}$, $\eta$ & System temperature and aperture efficiency.\\
+$d$, $A_{\mathrm{geo}}$ & Dish diameter ($\SI{13.5}{m}$) and geometric area.\\
+$N_{\mathrm{ant}}$, $n_{\mathrm{bl}}$ & Antenna and baseline counts.\\
+$\tau$, $\Delta\nu$, $n_{\mathrm{pol}}$ & On-source time, channel width, polarisations ($2$).\\
+$n_{\mathrm{fac}}$ & Imaging-weight noise penalty relative to natural.\\
+$\theta_{\mathrm{maj}}$, $\theta_{\mathrm{min}}$ & Beam major/minor FWHM (arcsec).\\
+$\Omega_{\mathrm{beam}}$, $\Omega_{\mathrm{pix}}$, $n_{\mathrm{pb}}$ & Beam/pixel solid angle and pixels-per-beam.\\
+$S_{\mathrm{int}}(\nu)$ & Spatially integrated flux-density spectrum, Eq.~(\ref{eq:sint}).\\
+$f_0$, $c$ & \textsc{Hi}\ rest frequency, speed of light.\\
+$f_{\mathrm{bad}}$, $f_{\mathrm{warn}}$ & Bad/warn channel fractions.\\
+\bottomrule
+\end{longtable}
+
+\noindent\emph{Note on the boresight method.} The best-case boresight noise
+methodology (Section~\ref{sec:boresight}) follows the reference MeerKAT
+\textsc{Hi}\ reduction (referred to as ``P20'' in the source comments); replace
+this note with the appropriate bibliographic reference for a formal write-up.
+
+% ===========================================================================
+\bibliographystyle{plainnat}
+\bibliography{refs}
+% ===========================================================================
+
+\end{document}

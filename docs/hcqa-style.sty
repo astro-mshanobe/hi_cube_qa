@@ -1,0 +1,100 @@
+% ===========================================================================
+%  hcqa-style.sty -- shared preamble for the hi_cube_qa documentation
+% ===========================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{hcqa-style}[2026/06/30 hi_cube_qa documentation style]
+
+\RequirePackage[T1]{fontenc}
+\RequirePackage[utf8]{inputenc}
+\RequirePackage{lmodern}
+\RequirePackage{microtype}          % cleaner justification -> fewer overfull boxes
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{booktabs}
+\RequirePackage{longtable}
+\RequirePackage{array}
+\RequirePackage{siunitx}
+\RequirePackage{xcolor}
+\RequirePackage{enumitem}
+\RequirePackage{listings}
+\RequirePackage{tikz}
+\RequirePackage{url}
+\RequirePackage[round]{natbib}
+\RequirePackage[hidelinks,unicode]{hyperref}
+
+\usetikzlibrary{arrows.meta}
+
+% --- palette (matches the HTML report) ---
+\definecolor{hcqaBlue}{HTML}{2E75B6}
+\definecolor{hcqaRed}{HTML}{E04B3A}
+\definecolor{hcqaGreen}{HTML}{27AE60}
+\definecolor{hcqaText}{HTML}{333333}
+\definecolor{hcqaDark}{HTML}{0F1117}
+\definecolor{codebg}{HTML}{F4F5F7}
+\definecolor{cmt}{HTML}{27AE60}
+
+\sisetup{detect-all}
+
+% Absorb the occasional few-pt overfull line in body text without resorting
+% to \sloppy (keeps the log clean while preserving justification). Long code
+% identifiers carry explicit \allowbreak points where needed.
+\setlength{\emergencystretch}{2em}
+
+% Ragged-right fixed-width column for tables (avoids justification-driven
+% over/underfull boxes in narrow longtable cells).
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% --- inline helpers ---
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\filepath}[1]{\path{#1}}     % breakable file paths / globs
+\newcommand{\mjybeam}{\si{mJy.beam^{-1}}}
+\newcommand{\jybeam}{\si{Jy.beam^{-1}}}
+
+% --- code listing style (YAML / shell) ---
+\lstdefinestyle{yaml}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single, rulecolor=\color{lightgray},
+  breaklines=true, breakatwhitespace=false,
+  postbreak=\mbox{\textcolor{gray}{$\hookrightarrow$}\space},
+  columns=fullflexible,
+  keywordstyle=\color{hcqaBlue}\bfseries,
+  commentstyle=\color{cmt}\itshape,
+  morecomment=[l]{\#},
+  showstringspaces=false,
+  xleftmargin=6pt, xrightmargin=6pt, aboveskip=8pt, belowskip=8pt,
+}
+\lstset{style=yaml}
+
+% ===========================================================================
+%  Logo: a stacked spectral cube with an overlaid spectrum and a small
+%  radio-dish / signal motif. Drawn entirely in TikZ (no external image).
+%  Usage: \hcqalogo  or  \hcqalogo[1.3]   (optional scale factor)
+% ===========================================================================
+\newcommand{\hcqalogo}[1][1]{%
+\begin{tikzpicture}[scale=#1, line join=round]
+  % --- three stacked channel planes (isometric), back (bottom) to front (top) ---
+  \foreach \i/\col in {0/{hcqaBlue!30}, 1/{hcqaBlue!55}, 2/{hcqaBlue!85}} {
+    \begin{scope}[yshift=\i*0.30cm]
+      \filldraw[fill=\col, draw=hcqaText, line width=0.4pt]
+            (0,0) -- (1.75,0) -- (2.25,0.72) -- (0.50,0.72) -- cycle;
+    \end{scope}
+  }
+  % --- spectrum trace across the front (top) plane ---
+  \draw[hcqaGreen, line width=1.1pt]
+        (0.62,0.99)
+     .. controls (0.95,0.99) and (1.00,0.99) .. (1.10,1.04)
+     .. controls (1.20,1.10) and (1.22,1.42) .. (1.38,1.42)
+     .. controls (1.54,1.42) and (1.56,1.06) .. (1.70,1.04)
+     .. controls (1.84,1.02) and (2.0,0.99) .. (2.18,0.99);
+  % --- radio dish + signal arcs, upper right ---
+  \begin{scope}[shift={(2.78,1.18)}]
+    \filldraw[fill=hcqaRed!85, draw=hcqaRed, line width=0.6pt]
+          (-0.30,-0.12) arc (200:340:0.32) -- cycle;
+    \draw[hcqaText, line width=0.6pt] (0.00,0.00) -- (0.05,0.26);
+    \fill[hcqaText] (0.05,0.26) circle (0.04);
+    \foreach \r in {0.26,0.42,0.58} {
+      \draw[hcqaRed!75, line width=0.6pt] (0.34,0.46) ++(\r,0) arc (0:48:\r);
+    }
+  \end{scope}
+\end{tikzpicture}%
+}

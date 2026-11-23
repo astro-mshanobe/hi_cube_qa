@@ -1,0 +1,129 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{hcqa-style}
+
+\hypersetup{
+  pdftitle={hi\_cube\_qa Quickstart},
+  pdfauthor={GAMA G23 MeerKAT HI Survey}
+}
+
+\pagestyle{empty}
+
+\begin{document}
+
+% --------------------------- title block ----------------------------------
+\begin{center}
+  {\hcqalogo[1.4]}\\[10pt]
+  {\LARGE\bfseries\ttfamily hi\_cube\_qa}\\[4pt]
+  {\large Quickstart}\\[6pt]
+  {\normalsize MeerKAT \textsc{Hi}\ cube quality assessment --- GAMA~G23}
+\end{center}
+\noindent\rule{\textwidth}{0.6pt}
+\vspace{4pt}
+
+\noindent
+\code{hi\_cube\_qa} reads the spectral-line cubes that \textsc{CARACal}
+\citep{jozsa2020} writes for an observation session and produces \textbf{one
+interactive HTML QA report per session}. It auto-discovers the cubes, measures
+the per-channel noise, compares it to the radiometer-equation expectation,
+checks the synthesised beam and the integrated spectrum, and grades each cube
+against a fixed expert checklist. For the full scientific justification of every
+metric, see the companion \emph{Reference Manual} (\code{hi\_cube\_qa.tex}).
+
+% ---------------------------------------------------------------------------
+\section*{1.\quad The three-step workflow}
+\addcontentsline{toc}{section}{Workflow}
+
+\textbf{Step 1 --- point a config at one or more session roots.}
+You list \emph{sessions}, not cubes; everything under each session is discovered
+automatically.
+\begin{lstlisting}
+sessions:
+    - root: /idia/projects/uct-mega-hi/G23/1610268336_sdp_l0/caracal
+products: [dirty, image, residual]   # default three; or 'all'; or a subset
+\end{lstlisting}
+
+\textbf{Step 2 --- preview what will be assessed} (fast, no heavy compute):
+\begin{lstlisting}
+python3 main.py --config qa_G23_all_sessions.yaml --list
+\end{lstlisting}
+This prints every \code{pointing/cube\_N} unit and the products found, so you
+can confirm e.g.\ that residuals are picked up before committing to a full run.
+
+\textbf{Step 3 --- run it.} Locally:
+\begin{lstlisting}
+python3 main.py --config qa_G23_all_sessions.yaml
+\end{lstlisting}
+or on the cluster (Slurm + Singularity):
+\begin{lstlisting}
+sbatch run_qa.sh                  # uses qa_G23_all_sessions.yaml
+sbatch run_qa.sh my_config.yaml   # or a custom config
+\end{lstlisting}
+Each session yields \code{<obsid>\_qa\_report.html} plus three CSVs and a log in
+\code{output.dir}, and a master \code{qa\_index.html} that tabs through all
+sessions. \textbf{Open \code{qa\_index.html}} in any modern browser.
+
+% ---------------------------------------------------------------------------
+\section*{2.\quad What the report contains}
+\addcontentsline{toc}{section}{Report contents}
+
+The report is organised by \emph{pointing}; each \code{(pointing, cube\_N)} unit
+overlays its products (which share a WCS and channel grid) on common axes:
+
+\begin{description}[leftmargin=1.4em,style=nextline,itemsep=1pt]
+  \item[Provenance strip] Briggs robust, niter, restoring beam read from the
+        header; a warning if the cube is primary-beam corrected.
+  \item[Summary table] Median RMS, RMS/theory, $3\sigma$ $N_{\mathrm{HI}}$,
+        channel grades, beam.
+  \item[RMS curves] Per-channel noise coloured by quality, with the per-channel
+        theory curve (frequency- and flagging-aware); plus RMS/theory, the
+        cumulative (converging) RMS, and the RMS histogram.
+  \item[Noise overview] Boresight (best-case), median and peak noise versus the
+        flat and flagging-reduced theory curves.
+  \item[Spectral profile \& band spectrum] Peak/mean per channel, and the
+        integrated flux density $S_{\mathrm{int}}(v)$ with $\pm1/\pm3\sigma$
+        envelopes, a velocity/frequency dual axis, and the redshift marker.
+  \item[$N_{\mathrm{HI}}$ sensitivity] Per-channel $3\sigma$ column-density limit.
+  \item[Non-Gaussianity] Per-channel kurtosis (expectation 3 for Gaussian noise)
+        -- catches contamination the RMS check alone cannot see.
+  \item[Beam statistics] \textsc{Bmaj}/\textsc{Bmin}/\textsc{Bpa} across the band.
+  \item[Spatial maps] Per-pixel noise map and continuum-persistence map
+        (continuum-subtraction quality) for the residual.
+  \item[Channel maps] Diagnostic channels: cleanest/typical/noisiest by RMS and
+        strongest/typical/weakest by SNR.
+  \item[Checklist] Pass/warn/fail against nine expert criteria.
+  \item[Flagging] One session-level bar chart of \textsc{CARACal} flag fractions.
+\end{description}
+A master \code{qa\_index.html} tabs through every session, and
+\code{qa\_survey\_summary.\{csv,json\}} rolls up every cube across all sessions.
+
+% ---------------------------------------------------------------------------
+\section*{3.\quad Three things to set correctly}
+\addcontentsline{toc}{section}{Key settings}
+
+\begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
+  \item \textbf{\code{radiometer.t\_total}} --- the \emph{on-source} hours. It
+        scales the theoretical-noise line $\sigma_{\mathrm{theory}}\propto
+        \tau^{-1/2}$, so set it to the real track length or the RMS/theory ratio
+        is meaningless. (Channel width is auto-read from each FITS header.)
+  \item \textbf{\code{radiometer.nfac}} --- the imaging-weight penalty
+        (e.g.\ $\approx 1.7$ for Briggs robust $=-0.5$), or \code{auto} to read
+        the robust value from the header; makes the theory match the weighting
+        used. See also \code{sefd\_curve} and \code{flag\_fraction}.
+  \item \textbf{\code{products}} --- defaults to \code{[dirty, image,
+        residual]}. Use \code{all} to also pick up \code{model}/\code{psf}, or a
+        subset to keep reports light. The \code{residual} cube is used as the
+        noise reference when present.
+\end{enumerate}
+
+\vfill
+\noindent\rule{\textwidth}{0.4pt}\\[2pt]
+{\footnotesize Built on \code{numpy}, \code{scipy}, \code{astropy},
+\code{matplotlib} and \code{plotly}. Full method details and references:
+\emph{hi\_cube\_qa Reference Manual}.}
+
+\bibliographystyle{plainnat}
+\renewcommand{\refname}{\vspace{-1.5em}}
+{\footnotesize\bibliography{refs}}
+
+\end{document}

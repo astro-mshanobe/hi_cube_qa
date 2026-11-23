@@ -1,0 +1,82 @@
+# hi_cube_qa - G23 all observation sessions
+# ------------------------------------------
+# One HTML report is produced per session, named <obsid>_qa_report.html.
+# Cubes are auto-discovered; only the products below are loaded/plotted.
+
+output:
+    dir: ./qa_output
+    html: true
+    csv: true
+    log: true
+    save_png: true         # save key figures as PNGs under qa_output/pngs/<obsid>/
+    png_figures: [summary, rms_curve, rms_vs_theory, noise_overview, bandspec, nhi]
+    png_scale: 2
+
+plots:
+    full_resolution: false # default downsampled; run with --full-res for every channel
+    max_points: 2000       # points/trace when downsampling (CSVs stay full resolution)
+
+sessions:
+    - root: /idia/projects/uct-mega-hi/G23/1598036468_sdp_l0/caracal
+    - root: /idia/projects/uct-mega-hi/G23/1608285672_sdp_l0/caracal
+    - root: /idia/projects/uct-mega-hi/G23/1609151470_sdp_l0/caracal
+    - root: /idia/projects/uct-mega-hi/G23/1610184417_sdp_l0/caracal
+    - root: /idia/projects/uct-mega-hi/G23/1610268336_sdp_l0/caracal
+
+# Default three products. Set to 'all' to also pick up model/psf if present.
+products: [dirty, image, residual]
+
+# null -> every pointing in each session. Restrict with e.g. [p63, p64].
+pointings: null
+
+# null/'all' -> every cube_N in each pointing. Restrict with e.g. [cube_1] or [1].
+cubes: null
+
+flagreport_glob: output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json
+
+radiometer:
+    sefd:    null
+    tsys:    25.0
+    eta:     0.80
+    n_ant:          auto  # real per-session antenna count from obsinfo; or a fixed number
+    n_ant_fallback: 60    # used only if 'auto' finds nothing
+    t_total: 1.0          # hours on-source -- set per session to the real track length
+    df:      26367.19     # Hz; auto-overridden per cube from the FITS header
+    nfac:    auto         # read Briggs robust from header; or a number e.g. 1.7
+    sefd_curve:    default  # frequency-dependent SEFD shape; or 'flat' / a table
+    flag_fraction: auto     # fold the target flagged fraction into the theory
+
+sensitivity:
+    nhi_dv_kms: 20.0      # report 3-sigma N_HI over a 20 km/s line
+    nsigma:     3.0
+
+continuum:
+    sigma: 3.0
+
+reduce:
+    chunk: 64
+    maps:  true
+
+spectral:
+    z_source: null
+
+thumbnails:
+    selectors: [rms, snr]
+
+boresight:
+    enable: true
+    box_size: 100
+    centre_pix: null
+    sigma_clip: 3.0
+    clip_iterations: 3
+
+thresholds:
+    rms_warn_factor:   1.5
+    rms_bad_factor:    3.0
+    bad_chan_warn_pct: 5.0
+    bad_chan_bad_pct:  15.0
+    beam_scatter_warn: 0.5
+    flag_warn_pct:     10.0
+    flag_bad_pct:      30.0
+    kurtosis_warn_sigma: 5.0   # |kurtosis-3| > N standard errors -> Warn
+    kurtosis_bad_sigma:  10.0  # |kurtosis-3| > N standard errors -> Bad

@@ -1,0 +1,41 @@
+# Local working log
+PROJECT_STATUS.md
+
+# Copyrighted paper (reference only)
+Luber_2025_ApJ_985_215.pdf
+
+# Generated QA outputs and archives
+qa_output_repaired/
+qa_output_repaired.tgz
+qa_results_*/
+qa_output*/
+
+# Results of single analysis runs
+baseline_*.png
+baseline_*.csv
+
+# Slurm logs
+*.log
+*.err
+
+# Documentation build products (regenerate with `make` in docs/)
+docs/*.pdf
+docs/*.aux
+docs/*.bbl
+docs/*.blg
+docs/*.out
+docs/*.toc
+notes/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+
+# macOS
+.DS_Store

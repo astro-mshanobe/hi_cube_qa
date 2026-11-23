@@ -1,0 +1,88 @@
+# hi_cube_qa - example session configuration
+# ------------------------------------------
+# One HTML report is produced per session. Cubes are auto-discovered under each
+# session root; you only choose which products to plot.
+
+output:
+    dir: ./qa_output
+    html: true
+    csv: true
+    log: true
+    save_png: false        # also save key figures as PNGs (needs 'kaleido')
+    png_figures: [summary, rms_curve, rms_vs_theory, noise_overview, bandspec, nhi]
+    png_scale: 2
+
+plots:
+    full_resolution: false # false = downsampled plots (default); true = every
+                           # channel. Override per-run with --full-res / --downsample.
+    max_points: 2000       # cap points/trace when downsampling (CSVs stay full-res;
+                           # Bad channels always kept).
+
+# One or more CARACal session roots (the caracal/ directory of each obs).
+sessions:
+    - root: /idia/projects/uct-mega-hi/G23/1610268336_sdp_l0/caracal
+    - root: /idia/projects/uct-mega-hi/G23/1609151470_sdp_l0/caracal
+
+# Imaging products to load per cube. Defaults to the three below.
+# Use 'all' to plot every product discovered (dirty/image/residual/model/psf).
+products: [dirty, image, residual]
+
+# Optional pointing filter. null -> all pointings found in each session.
+pointings: null
+# pointings: [p63, p64]
+
+# Optional cube filter. null/'all' -> every cube_N found in each pointing.
+# Accepts cube_1, c1 or 1 (equivalent). E.g. [cube_1] to check only cube_1.
+cubes: null
+# cubes: [cube_1]
+
+# Flagging-summary JSONs, globbed relative to each session root. null disables.
+flagreport_glob: output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json
+
+radiometer:
+    sefd:    null
+    tsys:    25.0
+    eta:     0.80
+    n_ant:          auto  # read the real per-session antenna count from obsinfo;
+                          # or set a fixed number directly
+    n_ant_fallback: 60    # used only if 'auto' finds nothing
+    t_total: 1.0          # hours on-source (set to the actual track length)
+    df:      26367.19     # Hz; auto-overridden per cube from the FITS header
+    nfac:    1.7          # Briggs robust=-0.5 penalty; or 'auto' (read from header)
+    sefd_curve:    default   # 'default' freq-dependent curve | 'flat' | [[MHz,Jy],...]
+    flag_fraction: auto      # fold flagging into theory: 'auto' | number | null
+
+spectral:
+    z_source: null        # set e.g. 0.05 to mark a target redshift
+
+sensitivity:
+    nhi_dv_kms: 20.0      # quote 3-sigma N_HI over this line width
+    nsigma:     3.0
+
+continuum:
+    sigma: 3.0            # per-channel threshold for the continuum persistence map
+
+reduce:
+    chunk: 64             # channels read per block (memory/speed knob)
+    maps:  true           # render 2-D noise + continuum maps
+
+thumbnails:
+    selectors: [rms, snr] # show best/median/worst channels by RMS and by SNR
+
+boresight:
+    enable: true
+    box_size: 100
+    centre_pix: null
+    sigma_clip: 3.0
+    clip_iterations: 3
+
+thresholds:
+    rms_warn_factor:   1.5
+    rms_bad_factor:    3.0
+    bad_chan_warn_pct: 5.0
+    bad_chan_bad_pct:  15.0
+    beam_scatter_warn: 0.5
+    flag_warn_pct:     10.0
+    flag_bad_pct:      30.0
+    kurtosis_warn_sigma: 5.0   # |kurtosis-3| > N standard errors -> Warn
+    kurtosis_bad_sigma:  10.0  # |kurtosis-3| > N standard errors -> Bad
