@@ -33,7 +33,7 @@ def _tree(tmp_path):
 
 
 @uses_tmp_path
-def test_units_are_sorted_by_numeric_pointing_then_cube_and_the_obsid_comes_from_the_parent_folder(
+def test_unit_order_and_obsid(
     tmp_path,
 ):
     s = dc.discover_session(_tree(tmp_path))
@@ -44,7 +44,7 @@ def test_units_are_sorted_by_numeric_pointing_then_cube_and_the_obsid_comes_from
 
 
 @uses_tmp_path
-def test_products_are_ordered_known_first_then_alphabetically_and_labelled(tmp_path):
+def test_product_order_and_labels(tmp_path):
     s = dc.discover_session(_tree(tmp_path))
     u = s.units_for("p7")[1]
     assert [p.product for p in u.products] == ["image", "model", "psf"]
@@ -53,7 +53,7 @@ def test_products_are_ordered_known_first_then_alphabetically_and_labelled(tmp_p
 
 
 @uses_tmp_path
-def test_the_diagnostic_folder_and_unparseable_file_names_are_skipped(tmp_path):
+def test_unparseable_files_are_skipped(tmp_path):
     s = dc.discover_session(_tree(tmp_path))
     names = [cp.path.name for u in s.units for cp in u.products]
     assert not any("flagging" in n or n.endswith(".txt") or "0001" in n for n in names)
@@ -61,7 +61,7 @@ def test_the_diagnostic_folder_and_unparseable_file_names_are_skipped(tmp_path):
 
 
 @uses_tmp_path
-def test_product_filter_drops_units_left_without_products(tmp_path):
+def test_product_filter(tmp_path):
     s = dc.discover_session(_tree(tmp_path), products=["residual"])
     assert [u.key for u in s.units] == ["p13/cube_1"]
     s = dc.discover_session(_tree(tmp_path), products=["DIRTY", "Image"])
@@ -69,7 +69,7 @@ def test_product_filter_drops_units_left_without_products(tmp_path):
 
 
 @uses_tmp_path
-def test_pointing_and_cube_filters_accept_equivalent_spellings(tmp_path):
+def test_pointing_and_cube_filters(tmp_path):
     car = _tree(tmp_path)
     assert [u.key for u in dc.discover_session(car, pointings=["p13"]).units] == ["p13/cube_1"]
     for spec in (["cube_2"], ["c2"], [2], ["2"]):
@@ -78,11 +78,11 @@ def test_pointing_and_cube_filters_accept_equivalent_spellings(tmp_path):
     assert len(dc.discover_session(car, cubes="all").units) == 4
 
 
-def test_norm_cube_reduces_every_spelling_to_the_bare_suffix():
+def test_norm_cube():
     assert [dc._norm_cube(x) for x in ("cube_1", "Cube1", "c1", 1, " 1 ")] == ["1"] * 5
 
 
-def test_parse_product_takes_the_last_alphabetic_token_before_fits():
+def test_parse_product():
     from pathlib import PurePath
 
     assert dc._parse_product(PurePath("G23_a_HI_1.residual.fits")) == "residual"
@@ -92,20 +92,20 @@ def test_parse_product_takes_the_last_alphabetic_token_before_fits():
 
 
 @uses_tmp_path
-def test_a_missing_session_root_is_an_error(tmp_path):
+def test_missing_session_root(tmp_path):
     with raises(FileNotFoundError):
         dc.discover_session(tmp_path / "nope")
 
 
 @uses_tmp_path
-def test_summarise_lists_one_line_per_unit(tmp_path):
+def test_summarise(tmp_path):
     text = dc.summarise(dc.discover_session(_tree(tmp_path)))
     assert text.splitlines()[0] == "Session 1600000000_sdp_l0: 4 unit(s) across 3 pointing(s)"
     assert "p7/cube_1" in text and "[dirty, image]" in text
 
 
 @uses_tmp_path
-def test_flag_reports_use_the_configured_glob_first_then_progressively_broader_fallbacks(tmp_path):
+def test_flag_report_glob_fallbacks(tmp_path):
     car = tmp_path / "caracal"
     hit = _touch(car, "output_hi_1gc", "diagnostic_plots", "s-flagging-summary-0.json")
     _touch(car, "output_hi_1gc", "diagnostic_plots", "s-crosscal-summary-0.json")
@@ -122,7 +122,7 @@ def test_flag_reports_use_the_configured_glob_first_then_progressively_broader_f
 
 
 @uses_tmp_path
-def test_flag_report_discovery_can_be_disabled_and_reports_nothing_when_nothing_matches(tmp_path):
+def test_flag_report_discovery_disabled_or_empty(tmp_path):
     assert dc.discover_flag_reports(tmp_path, None) == ([], None)
     assert dc.discover_flag_reports(tmp_path, "") == ([], None)
     assert dc.discover_flag_reports(tmp_path, "*.json") == ([], None)

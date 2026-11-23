@@ -16,7 +16,7 @@ def _summary(root, content):
 
 
 @uses_tmp_path
-def test_the_antenna_count_is_the_length_of_a_per_antenna_column_not_the_number_of_columns(
+def test_antenna_count_is_column_length(
     tmp_path,
 ):
     cols = ("NAME", "STATION", "OFFSET", "POSITION", "DISH_DIAMETER", "MOUNT", "TYPE", "FLAG_ROW")
@@ -26,13 +26,13 @@ def test_the_antenna_count_is_the_length_of_a_per_antenna_column_not_the_number_
 
 
 @uses_tmp_path
-def test_the_first_usable_column_is_used_when_name_is_absent(tmp_path):
+def test_fallback_column(tmp_path):
     _summary(tmp_path, {"ANT": {"NAME": [], "STATION": ["a"], "POSITION": [1, 2, 3, 4]}})
     assert wl.read_n_ant(tmp_path)[0] == 4
 
 
 @uses_tmp_path
-def test_missing_or_malformed_summaries_give_none_and_a_reason(tmp_path):
+def test_missing_or_malformed_summary(tmp_path):
     assert wl.read_n_ant(tmp_path) == (None, "no obsinfo summary.json found")
     _summary(tmp_path, "{not json")
     n, why = wl.read_n_ant(tmp_path)
@@ -40,7 +40,7 @@ def test_missing_or_malformed_summaries_give_none_and_a_reason(tmp_path):
 
 
 @uses_tmp_path
-def test_an_ant_field_of_the_wrong_kind_or_without_columns_is_reported(tmp_path):
+def test_bad_ant_field(tmp_path):
     p = _summary(tmp_path, {"other": 1})
     assert wl.read_n_ant(tmp_path)[1].endswith("no ANT field")
     p.write_text(json.dumps({"ANT": [1, 2]}))

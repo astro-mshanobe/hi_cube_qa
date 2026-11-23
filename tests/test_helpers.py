@@ -11,12 +11,12 @@ def _assertion_message(block):
     return None
 
 
-def test_raises_accepts_the_expected_exception_with_a_matching_message():
+def test_raises_accepts_matching_error():
     with raises(ValueError, match="bad .* value"):
         raise ValueError("a bad input value")
 
 
-def test_raises_fails_when_nothing_is_raised():
+def test_raises_fails_without_error():
     def block():
         with raises(ValueError):
             pass
@@ -24,7 +24,7 @@ def test_raises_fails_when_nothing_is_raised():
     assert "was not raised" in _assertion_message(block)
 
 
-def test_raises_fails_when_the_message_does_not_match():
+def test_raises_fails_on_wrong_message():
     def block():
         with raises(ValueError, match="expected text"):
             raise ValueError("something else")
@@ -32,7 +32,7 @@ def test_raises_fails_when_the_message_does_not_match():
     assert "does not match" in _assertion_message(block)
 
 
-def test_raises_does_not_swallow_a_different_exception_type():
+def test_raises_passes_other_errors_through():
     try:
         with raises(ValueError):
             raise KeyError("k")
@@ -41,7 +41,7 @@ def test_raises_does_not_swallow_a_different_exception_type():
     raise AssertionError("a KeyError should propagate")
 
 
-def test_uses_tmp_path_gives_each_call_an_empty_directory_and_removes_it_afterwards():
+def test_tmp_path_is_fresh_and_removed():
     seen = []
 
     @uses_tmp_path

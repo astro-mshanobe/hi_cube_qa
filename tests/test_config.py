@@ -22,7 +22,7 @@ def _cfg(tmp_path, extra=""):
 
 
 @uses_tmp_path
-def test_load_config_merges_the_user_file_over_the_defaults(tmp_path):
+def test_user_file_overrides_defaults(tmp_path):
     c = _cfg(tmp_path, "radiometer:\n  tsys: 30.0\nproducts: [image]\npointings: [p1]\n")
     assert (
         c.radiometer["tsys"] == 30.0 and c.radiometer["eta"] == 0.80
@@ -33,14 +33,14 @@ def test_load_config_merges_the_user_file_over_the_defaults(tmp_path):
 
 
 @uses_tmp_path
-def test_load_config_does_not_modify_the_module_defaults(tmp_path):
+def test_defaults_are_not_modified(tmp_path):
     before = yaml.safe_dump(cf.DEFAULTS)
     _cfg(tmp_path, "radiometer:\n  tsys: 99.0\n")
     assert yaml.safe_dump(cf.DEFAULTS) == before
 
 
 @uses_tmp_path
-def test_an_empty_pointing_list_means_all_pointings(tmp_path):
+def test_empty_pointing_list_means_all(tmp_path):
     assert _cfg(tmp_path, "pointings: []\ncubes: []\n").pointings is None
 
 
@@ -60,19 +60,19 @@ INVALID_SETTINGS = [
 
 
 @uses_tmp_path
-def test_invalid_settings_are_rejected_with_a_clear_message(tmp_path):
+def test_invalid_settings_are_rejected(tmp_path):
     for extra, message in INVALID_SETTINGS:
         with raises(ValueError, match=message):
             _cfg(tmp_path, extra)
 
 
 @uses_tmp_path
-def test_radiometer_limits_are_not_checked_when_a_sefd_is_given(tmp_path):
+def test_sefd_skips_tsys_and_eta_checks(tmp_path):
     assert _cfg(tmp_path, "radiometer:\n  sefd: 420.0\n  tsys: 0\n").radiometer["sefd"] == 420.0
 
 
 @uses_tmp_path
-def test_sessions_are_required_and_their_roots_must_exist(tmp_path):
+def test_sessions_are_required(tmp_path):
     with raises(ValueError, match="at least one"):
         cf.load_config(_write(tmp_path, "products: all\n"))
     with raises(ValueError, match="missing required key"):
@@ -84,7 +84,7 @@ def test_sessions_are_required_and_their_roots_must_exist(tmp_path):
 
 
 @uses_tmp_path
-def test_output_paths_are_namespaced_by_session_and_the_directory_is_created(tmp_path):
+def test_session_output_path(tmp_path):
     c = _cfg(tmp_path, f"output:\n  dir: {tmp_path}/out/deep\n")
     p = c.session_out_path("1600000000_sdp_l0", "_channel_qa.csv")
     assert p == tmp_path / "out" / "deep" / "1600000000_sdp_l0_channel_qa.csv" and p.parent.is_dir()
@@ -97,7 +97,7 @@ def _example(tmp_path):
 
 
 @uses_tmp_path
-def test_the_example_file_parses_and_loads_once_its_session_roots_exist(tmp_path):
+def test_example_file_loads(tmp_path):
     p = _example(tmp_path)
     user = yaml.safe_load(p.read_text())
     assert len(user["sessions"]) >= 1
@@ -106,7 +106,7 @@ def test_the_example_file_parses_and_loads_once_its_session_roots_exist(tmp_path
 
 
 @uses_tmp_path
-def test_the_example_file_agrees_with_the_defaults_for_every_setting_it_names(tmp_path):
+def test_example_file_matches_defaults(tmp_path):
     user = yaml.safe_load(_example(tmp_path).read_text())
     for section in (
         "output",
@@ -125,6 +125,6 @@ def test_the_example_file_agrees_with_the_defaults_for_every_setting_it_names(tm
 
 
 @uses_tmp_path
-def test_the_example_file_in_the_repository_is_what_write_example_config_writes(tmp_path):
+def test_shipped_example_is_current(tmp_path):
     shipped = ROOT / "qa_session_example.yaml"
     assert shipped.read_text() == _example(tmp_path).read_text()

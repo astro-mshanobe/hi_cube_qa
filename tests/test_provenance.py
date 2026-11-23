@@ -12,7 +12,7 @@ def _h(**kw):
     return h
 
 
-def test_nfac_interpolates_the_table_and_clamps_outside_it():
+def test_nfac_interpolation():
     assert pv.nfac_from_robust(None) is None
     for r, n in pv._ROBUST_NFAC:
         assert abs(pv.nfac_from_robust(r) - n) < 1e-12
@@ -20,7 +20,7 @@ def test_nfac_interpolates_the_table_and_clamps_outside_it():
     assert pv.nfac_from_robust(-9.0) == 1.40 and pv.nfac_from_robust(9.0) == 1.00
 
 
-def test_robust_is_read_from_a_keyword_or_from_the_history():
+def test_robust_from_keyword_or_history():
     assert pv._find_robust(_h(WSCWEIGH="Briggs'(-0.5)")) == -0.5
     assert pv._find_robust(_h(WEIGHT="briggs 0.25")) == 0.25
     h = fits.Header()
@@ -28,7 +28,7 @@ def test_robust_is_read_from_a_keyword_or_from_the_history():
     assert pv._find_robust(h) == -0.3
 
 
-def test_natural_and_uniform_weighting_map_to_the_ends_of_the_scale_and_unknown_is_none():
+def test_natural_and_uniform_weighting():
     h = fits.Header()
     h["HISTORY"] = "wsclean -weight natural"
     assert pv._find_robust(h) == 2.0
@@ -41,7 +41,7 @@ def test_natural_and_uniform_weighting_map_to_the_ends_of_the_scale_and_unknown_
     )  # a keyword without a robust number is not trusted
 
 
-def test_niter_and_threshold_come_from_keywords_or_history():
+def test_niter_and_threshold():
     assert pv._find_int(_h(WSCNITER=1500), ("WSCNITER", "NITER"), r"-niter\s+(\d+)") == 1500
     h = fits.Header()
     h["HISTORY"] = "wsclean -niter 7000 -auto-threshold 3"
@@ -50,7 +50,7 @@ def test_niter_and_threshold_come_from_keywords_or_history():
     assert pv.read_provenance(_h(WSCTHRES=2.5e-4))["threshold"] == 2.5e-4
 
 
-def test_read_provenance_collects_the_observation_metadata_and_the_restoring_beam():
+def test_read_provenance():
     hdr = _h(
         TELESCOP="MeerKAT",
         OBJECT="G23",
@@ -77,7 +77,7 @@ def test_read_provenance_collects_the_observation_metadata_and_the_restoring_bea
     assert empty["telescope"] is None and empty["restoring_beam"] is None and empty["niter"] is None
 
 
-def test_resolve_nfac_uses_the_config_number_or_the_header_robust_value():
+def test_resolve_nfac():
     assert pv.resolve_nfac(1.7, fits.Header()) == (1.7, "config")
     n, src = pv.resolve_nfac("auto", _h(WSCWEIGH="Briggs'(-0.5)"))
     assert abs(n - 1.20) < 1e-12 and src == "auto (robust=-0.5)"

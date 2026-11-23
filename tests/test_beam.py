@@ -15,14 +15,14 @@ def _h(**kw):
     return h
 
 
-def test_a_global_beam_is_broadcast_to_every_channel_in_arcsec():
+def test_global_beam_in_arcsec():
     a, b, p = bm.beam_stats(_h(BMAJ=20 / 3600, BMIN=15 / 3600, BPA=30.0), 4)
     assert (
         np.allclose(a, 20.0) and np.allclose(b, 15.0) and np.allclose(p, 30.0) and a.shape == (4,)
     )
 
 
-def test_zero_padded_per_channel_keywords_take_priority_over_the_global_beam():
+def test_per_channel_keywords_override_global():
     h = _h(
         BMAJ=99 / 3600,
         BMIN=99 / 3600,
@@ -42,7 +42,7 @@ def test_zero_padded_per_channel_keywords_take_priority_over_the_global_beam():
     assert abs(a[2] - 99.0) < 1e-9  # channel 2 has no keyword: global value
 
 
-def test_one_indexed_keywords_including_the_truncated_forms():
+def test_one_indexed_and_truncated_keywords():
     h = _h(
         BMAJ1=20 / 3600,
         BMIN1=15 / 3600,
@@ -60,14 +60,14 @@ def test_one_indexed_keywords_including_the_truncated_forms():
     assert abs(a[0] - 20.0) < 1e-9 and abs(b[0] - 15.0) < 1e-9
 
 
-def test_a_header_without_beam_information_warns_and_returns_none():
+def test_no_beam_in_header():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         assert bm.beam_stats(fits.Header(), 3) == (None, None, None)
     assert w and "No beam info" in str(w[0].message)
 
 
-def test_beam_summary_statistics_area_and_axial_ratio():
+def test_beam_area_and_axial_ratio():
     bmaj = np.array([20.0, 20.0, 22.0, np.nan])
     bmin = np.array([10.0, 10.0, 11.0, np.nan])
     bpa = np.array([0.0, 10.0, 20.0, np.nan])
@@ -82,7 +82,7 @@ def test_beam_summary_statistics_area_and_axial_ratio():
     assert d["axial_ratio"] == 2.0 and d["max_bmaj_asec"] == 22.0 and d["min_bmin_asec"] == 10.0
 
 
-def test_the_beam_scatter_flag_compares_the_spread_of_bmaj_with_the_threshold():
+def test_bmaj_scatter_flag():
     steady = np.full(10, 20.0)
     wobbly = 20.0 + np.tile([-1.0, 1.0], 5)
     assert bm.beam_diagnostics(steady, steady, steady)["bmaj_scatter_quality"] == "Good"
@@ -93,5 +93,5 @@ def test_the_beam_scatter_flag_compares_the_spread_of_bmaj_with_the_threshold():
     )
 
 
-def test_beam_diagnostics_without_a_beam_is_unavailable():
+def test_diagnostics_without_beam():
     assert bm.beam_diagnostics(None, None, None) == {"available": False}

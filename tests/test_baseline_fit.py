@@ -109,7 +109,7 @@ def test_clean_data_clips_almost_nothing():
     assert (~keep).sum() <= 4  # 4-sigma clip of Gaussian noise: ~0.006% expected
 
 
-def test_clipping_uses_the_median_and_mad_so_a_contaminated_minority_does_not_hide_itself():
+def test_clip_centre_and_scale_are_median_and_mad():
     rng = np.random.default_rng(0)
     x = np.linspace(-100.0, 100.0, 200)
     y = rng.normal(0.0, 1.0, x.size)
@@ -120,7 +120,7 @@ def test_clipping_uses_the_median_and_mad_so_a_contaminated_minority_does_not_hi
     assert keep[~bad].all()  # a mean-centred clip would also reject some clean points
 
 
-def test_a_clip_that_would_leave_too_few_points_for_the_degree_keeps_every_point():
+def test_clip_keeps_all_points_when_too_few_would_remain():
     x = np.arange(4.0)
     y = np.array(
         [-50.7, -1.4, -0.2, -0.9]

@@ -51,7 +51,7 @@ def _rows(path):
 
 
 @uses_tmp_path
-def test_a_session_produces_the_report_the_tables_and_the_index(tmp_path):
+def test_session_outputs(tmp_path):
     out, _ = _run(tmp_path)
     obsid = "1600000000_sdp_l0"
     names = {p.name for p in out.iterdir()}
@@ -72,7 +72,7 @@ def test_a_session_produces_the_report_the_tables_and_the_index(tmp_path):
 
 
 @uses_tmp_path
-def test_the_measured_noise_matches_the_injected_sigma_and_the_theory_uses_the_session_antenna_count(
+def test_measured_noise_and_theory(
     tmp_path,
 ):
     out, _ = _run(tmp_path)
@@ -89,7 +89,7 @@ def test_the_measured_noise_matches_the_injected_sigma_and_the_theory_uses_the_s
 
 
 @uses_tmp_path
-def test_one_noisy_channel_is_flagged_bad_and_lowers_the_overall_grade(tmp_path):
+def test_noisy_channel_is_flagged(tmp_path):
     out, _ = _run(tmp_path, bad_channel=(5, 10.0))  # 10 mJy against a 2.9 mJy theory: ratio 3.4 > 3
     rows = _rows(out / "1600000000_sdp_l0_channel_qa.csv")
     assert {int(r["channel"]) for r in rows if r["quality"] == "Bad"} == {5}
@@ -100,7 +100,7 @@ def test_one_noisy_channel_is_flagged_bad_and_lowers_the_overall_grade(tmp_path)
 
 
 @uses_tmp_path
-def test_list_mode_prints_the_units_and_writes_nothing(tmp_path):
+def test_list_mode(tmp_path):
     out, text = _run(tmp_path, "--list")
     assert (
         "Session 1600000000_sdp_l0: 2 unit(s) across 2 pointing(s)" in text and "p01/cube_1" in text

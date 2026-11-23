@@ -26,7 +26,7 @@ def _check(tmp_path, offsets, **kw):
         return bf.baseline_check(handle, **kw)
 
 
-def test_robust_polyfit_recovers_a_line_and_rejects_high_leverage_edge_outliers():
+def test_polyfit_ignores_edge_outliers():
     x = np.linspace(-100.0, 100.0, 80)
     y = 2e-5 * x + 1e-4 + np.random.default_rng(0).normal(0.0, 1e-4, x.size)
     y[-3:] += 0.05
@@ -39,7 +39,7 @@ def test_robust_polyfit_recovers_a_line_and_rejects_high_leverage_edge_outliers(
     )  # the ordinary fit is pulled off by the outliers
 
 
-def test_robust_polyfit_clips_points_about_four_gaussian_sigma_from_the_fit():
+def test_polyfit_clips_at_four_sigma():
     rng = np.random.default_rng(1)
     x = np.linspace(-100.0, 100.0, 200)
     y = rng.normal(0.0, 1e-4, x.size)
@@ -48,7 +48,7 @@ def test_robust_polyfit_clips_points_about_four_gaussian_sigma_from_the_fit():
     assert not keep[[10, 100, 190]].any() and keep.sum() >= 190
 
 
-def test_robust_polyfit_without_clipping_keeps_every_point():
+def test_polyfit_without_clipping_keeps_all():
     x = np.arange(10.0)
     y = x.copy()
     y[3] = 50.0
@@ -56,7 +56,7 @@ def test_robust_polyfit_without_clipping_keeps_every_point():
     assert keep.all() and np.allclose(coeffs, np.polyfit(x, y, 1))
 
 
-def test_classify_uses_the_warn_and_bad_limits_as_strict_upper_bounds():
+def test_classify_limits():
     assert [bf.classify(v) for v in (0.0, 4.99, 5.0, 9.99, 10.0, 50.0)] == [
         "Pass",
         "Pass",
@@ -70,7 +70,7 @@ def test_classify_uses_the_warn_and_bad_limits_as_strict_upper_bounds():
 
 
 @uses_tmp_path
-def test_a_flat_baseline_gives_a_small_amplitude_in_standard_errors(tmp_path):
+def test_flat_baseline_passes(tmp_path):
     res = _check(tmp_path, np.zeros(NCHAN))
     assert res["available"] and res["n_channels_used"] == NCHAN
     assert abs(res["typical_sem_jy"] / SEM - 1.0) < 0.05
@@ -78,14 +78,14 @@ def test_a_flat_baseline_gives_a_small_amplitude_in_standard_errors(tmp_path):
 
 
 @uses_tmp_path
-def test_a_linear_trend_of_twenty_standard_errors_is_measured_and_fails(tmp_path):
+def test_linear_trend_amplitude_and_grade(tmp_path):
     res = _check(tmp_path, np.linspace(-10.0, 10.0, NCHAN) * SEM)
     assert 18.0 < res["baseline_sigma"] < 22.0 and bf.classify(res["baseline_sigma"]) == "Fail"
     assert res["n_clipped"] == 0
 
 
 @uses_tmp_path
-def test_isolated_outlier_channels_are_clipped_instead_of_creating_a_trend(tmp_path):
+def test_outlier_channels_are_clipped(tmp_path):
     offsets = np.zeros(NCHAN)
     offsets[[0, 1, NCHAN - 1]] = 150.0 * SEM
     res = _check(tmp_path, offsets)
@@ -95,7 +95,7 @@ def test_isolated_outlier_channels_are_clipped_instead_of_creating_a_trend(tmp_p
 
 
 @uses_tmp_path
-def test_too_few_finite_channels_make_the_check_unavailable(tmp_path):
+def test_unavailable_with_too_few_channels(tmp_path):
     rng = np.random.default_rng(0)
     data = np.full((NCHAN, NY, NX), np.nan, dtype=np.float32)
     data[:2] = rng.normal(0.0, SIGMA, (2, NY, NX))
