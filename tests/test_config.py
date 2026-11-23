@@ -62,6 +62,8 @@ INVALID_SETTINGS = [
     ("large_scale:\n  sigma_arcsec: -1\n", "large_scale.sigma_arcsec"),
     ("large_scale:\n  min_channels: 0\n", "large_scale.min_channels"),
     ("baseline:\n  degree: -1\n", "baseline.degree"),
+    ("plots:\n  initially_visible: []\n", "initially_visible"),
+    ("plots:\n  initially_visible: residual\n", "initially_visible"),
 ]
 
 

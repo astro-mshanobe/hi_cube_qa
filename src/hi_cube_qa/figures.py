@@ -358,7 +358,7 @@ def fig_rms_histogram(rms_dict) -> go.Figure:
                 opacity=0.72,
             )
         )
-        fig.add_vline(x=med * 1e3, line=dict(color=col, dash="dash", width=1.5))
+        fig.add_vline(x=med * 1e3, line=dict(color=col, dash="dash", width=1.5), name=label)
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         barmode="overlay",
@@ -950,6 +950,22 @@ def fig_large_scale(freq_hz, vel_kms, large_dict, limits=None) -> go.Figure:
     )
     add_channel_axis(fig, vel_kms)
     return fig
+
+
+def hide_products(fig: go.Figure, labels) -> None:
+    """Switch off the traces of the given product labels when the figure opens.
+
+    They stay in the legend, and a click on the entry switches them back on. Traces are
+    matched by their name, which is or starts with the product label.
+    """
+    labels = list(labels)
+    for trace in fig.data:
+        name = trace.name or ""
+        if any(name == lab or name.startswith(lab + " ") for lab in labels):
+            trace.visible = "legendonly"
+    for shape in fig.layout.shapes:
+        if shape.name in labels:
+            shape.visible = False
 
 
 def fig_flag_summary(flag_data) -> go.Figure | None:

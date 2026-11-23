@@ -266,3 +266,49 @@ def test_a_line_cube_on_another_channel_grid_is_left_out(tmp_path):
     out, _ = _run(tmp_path, tamper=lambda car: _add_line_cubes(car, nchan=10))
     assert not [label for label in _band(out) if label.endswith("c1-line")]
     assert "c1-residual" in " ".join(_band(out))
+
+
+@uses_tmp_path
+def test_initially_visible_products(tmp_path):
+    def legendonly(config, sub):
+        (tmp_path / sub).mkdir()
+        out, _ = _run(tmp_path / sub, tamper=_add_line_cubes, extra_config=config)
+        return (
+            (out / "1600000000_sdp_l0_qa_report.html").read_text().count('"visible":"legendonly"')
+        )
+
+    assert legendonly("", "all") == 0
+    assert legendonly("plots:\n  initially_visible: [residual, line]\n", "some") > 0
+    assert (
+        legendonly("plots:\n  initially_visible: [psf]\n", "none") == 0
+    )  # never hide every product
+
+
+@uses_tmp_path
+def test_initially_visible_hides_the_other_products(tmp_path):
+    import logging
+
+    from hi_cube_qa.config import load_config
+    from hi_cube_qa.discovery import discover_session
+
+    car = make_session(tmp_path / "data", n_ant=N_ANT, nchan=16, ny=48, nx=48, sigma=SIGMA_JY)
+    _add_line_cubes(car)
+    config = tmp_path / "qa.yaml"
+    config.write_text(
+        f"sessions:\n  - root: {car}\noutput:\n  dir: {tmp_path / 'out'}\n"
+        "plots:\n  initially_visible: [residual, line]\n"
+    )
+    cfg = load_config(config)
+    unit = discover_session(car, products=cfg.products).units[0]
+    bundle = qa_cli.assess_unit(unit, cfg, logging.getLogger("test"))
+    for figure in ("rms_curve", "rms_vs_theory", "kurtosis"):
+        hidden = {
+            t.name.split(" ")[0]
+            for t in bundle["figures"][figure].data
+            if t.visible == "legendonly"
+        }
+        shown = {t.name.split(" ")[0] for t in bundle["figures"][figure].data if t.visible is None}
+        assert {"c1-dirty", "c1-image"} <= hidden and not hidden & {"c1-residual", "c1-line"}, (
+            figure
+        )
+        assert {"c1-residual", "c1-line"} <= shown, figure

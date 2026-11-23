@@ -98,6 +98,8 @@ normally change:
 - `radiometer.t_total`: on-source hours of the track. The theoretical noise scales with it,
   and the default of 1 hour is rarely right.
 - `output.dir`: where the reports go.
+- `plots.initially_visible`: with four products per unit the figures can get busy; for example
+  `[residual, line]` starts with only those drawn, and a click on a legend entry shows the others.
 - `pointings` and `cubes`: start with one pointing, for example `pointings: [p63]`.
 
 Check what will be assessed, then run:

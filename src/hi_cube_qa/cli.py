@@ -34,6 +34,7 @@ from .figures import (
     fig_rms_vs_theory,
     fig_spectral_profile,
     fig_summary_table,
+    hide_products,
 )
 from .io_utils import channel_width_hz, flag_fraction_of, load_flag_report
 from .large_scale import assess_file
@@ -476,6 +477,13 @@ def assess_unit(
         figures["baseline"] = fig_baseline(freq, vel, baseline_dict)
     if large_dict:
         figures["large_scale"] = fig_large_scale(freq, vel, large_dict, limits=ls_limits)
+
+    # Products that start switched off (plots.initially_visible); never hide every product
+    shown = cfg.plots.get("initially_visible", "all")
+    if shown != "all" and any(cp.product in shown for cp in unit.products if cp.label in red):
+        off = [cp.label for cp in unit.products if cp.label in red and cp.product not in shown]
+        for fig in figures.values():
+            hide_products(fig, off)
 
     # Thumbnails per product (pre-selected planes)
     thumb_sections = []

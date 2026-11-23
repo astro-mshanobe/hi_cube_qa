@@ -40,6 +40,9 @@ DEFAULTS: dict[str, Any] = {
     "plots": {
         "full_resolution": False,
         "max_points": 2000,
+        # Products drawn when a figure opens: 'all', or a list such as [residual, line].
+        # The others stay in the legend and a click on an entry switches them on.
+        "initially_visible": "all",
     },
     # List of sessions: [{root: <path to caracal/>}, ...]
     "sessions": [],
@@ -303,6 +306,10 @@ def load_config(yaml_path: str | Path) -> QAConfig:
         if rad["df"] <= 0:
             raise ValueError("radiometer.df must be positive (channel width in Hz)")
 
+    shown = cfg["plots"]["initially_visible"]
+    if not (shown == "all" or (isinstance(shown, list) and shown)):
+        raise ValueError("plots.initially_visible must be 'all' or a non-empty list of products")
+
     ls = cfg["large_scale"]
     prods = ls["products"]
     if not (prods in ("reference", "all") or (isinstance(prods, list) and prods)):
@@ -340,6 +347,8 @@ plots:
                            # channel. Override per-run with --full-res / --downsample.
     max_points: 2000       # cap points/trace when downsampling (CSVs stay full-res;
                            # Bad channels always kept).
+    initially_visible: all # products drawn when a figure opens: all | [residual, line].
+                           # The others stay in the legend; a click switches them on.
 
 # One or more CARACal session roots (the caracal/ directory of each obs).
 sessions:

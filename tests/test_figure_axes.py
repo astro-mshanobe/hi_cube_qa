@@ -1,6 +1,7 @@
 """spectrum: figures are drawn against radio velocity, with the channel index along the top axis."""
 
 import numpy as np
+import plotly.graph_objects as go
 
 from hi_cube_qa import figures as figs
 from hi_cube_qa import report
@@ -261,3 +262,41 @@ def test_titles_have_no_html_entities():
 def test_ticks_point_outwards():
     for axis in (figs.PLOTLY_TEMPLATE.layout.xaxis, figs.PLOTLY_TEMPLATE.layout.yaxis):
         assert axis.ticks == "outside" and axis.ticklen >= 6
+
+
+def test_hide_products_switches_off_only_that_products_traces():
+    for name, (fig, _) in _figures().items():
+        if name == "noise_overview":
+            continue  # one product only, not an overlay
+        figs.hide_products(fig, ["A"])
+        product = [t for t in fig.data if (t.name or "").startswith("A") or t.legendgroup == "A"]
+        assert product and all(t.visible == "legendonly" for t in product), name
+        others = [t for t in fig.data if t not in product]
+        assert all(t.visible in (None, True) for t in others), name  # guide lines, top axis, theory
+    fig, _ = _figures()["rms_curve"]
+    figs.hide_products(fig, ["B"])
+    assert all(t.visible in (None, True) for t in fig.data)
+
+
+def test_hide_products_does_not_match_a_longer_label():
+    fig = figs.fig_rms_curve(FREQ, VEL, {"c1-image": RMS["A"], "c1-image2": RMS["A"]})
+    figs.hide_products(fig, ["c1-image"])
+    hidden = {t.name for t in fig.data if t.visible == "legendonly"}
+    assert hidden and all(n.startswith("c1-image ") or n == "c1-image" for n in hidden)
+
+
+def test_hide_products_also_hides_the_median_line_of_the_histogram():
+    rms = {
+        "A": (np.full(N, 1e-3) + 1e-5 * CHAN, "#2E75B6", RMS["A"][2]),
+        "B": (np.full(N, 1.01e-3) + 1e-5 * CHAN, "#E04B3A", RMS["A"][2]),
+    }
+    fig = figs.fig_rms_histogram(rms)
+    figs.hide_products(fig, ["B"])
+    assert [t.visible for t in fig.data] == [None, "legendonly"]
+    assert [s.visible for s in fig.layout.shapes] == [None, False]
+
+
+def test_hide_products_leaves_a_table_alone():
+    fig = go.Figure(go.Table(header=dict(values=["a"]), cells=dict(values=[[1]])))
+    figs.hide_products(fig, ["A"])
+    assert fig.data[0].type == "table"

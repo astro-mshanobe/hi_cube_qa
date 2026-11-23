@@ -65,6 +65,7 @@ A YAML file; unspecified keys take the defaults in `src/hi_cube_qa/config.py`.
 | `large_scale.*` | excess noise on large angular scales: `products` (`reference` = the line cube, else the residual; `all`; or a list), `sigma_arcsec` (120), `stride` (20), `pb_limit`, `min_channels`, `enable` |
 | `baseline.*` | baseline flatness: `degree` (1), `sigma_clip` (4), `enable` |
 | `plots.full_resolution`, `plots.max_points` | decimation of plotted traces; the CSVs are always full resolution |
+| `plots.initially_visible` | `all` (default) or a list such as `[residual, line]`: the products drawn when a figure opens. The others stay in the legend and a click switches them on |
 | `output.dir`, `output.save_png` | output location; PNG export of key figures |
 
 The residual cube, when present, is the noise reference for the noise overview, the
