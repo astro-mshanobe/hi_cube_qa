@@ -296,8 +296,8 @@ plots:
 
 # One or more CARACal session roots (the caracal/ directory of each obs).
 sessions:
-    - root: /idia/projects/uct-mega-hi/G23/1610268336_sdp_l0/caracal
-    - root: /idia/projects/uct-mega-hi/G23/1609151470_sdp_l0/caracal
+    - root: /data/G23/1610268336_sdp_l0/caracal
+    - root: /data/G23/1609151470_sdp_l0/caracal
 
 # Imaging products to load per cube. Defaults to the three below.
 # Use 'all' to plot every product discovered (dirty/image/residual/model/psf).
