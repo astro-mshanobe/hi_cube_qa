@@ -44,7 +44,7 @@ DEFAULTS: dict[str, Any] = {
     # List of sessions: [{root: <path to caracal/>}, ...]
     "sessions": [],
     # Which imaging products to load per cube. 'all' loads everything found.
-    "products": ["dirty", "image", "residual"],
+    "products": ["dirty", "image", "residual", "line"],
     # Optional pointing filter (e.g. [p63, p64]); null/empty -> all pointings.
     "pointings": None,
     # Optional cube filter (e.g. [cube_1] or [1]); null/'all' -> every cube_N.
@@ -103,10 +103,11 @@ DEFAULTS: dict[str, Any] = {
         "clip_iterations": 3,
     },
     # Excess noise power on large angular scales (large_scale.py). It smooths about
-    # nchan/stride channels per cube, so by default only the reference product is assessed.
+    # nchan/stride channels per cube, so by default only one product per unit is assessed:
+    # the continuum-subtracted line cube (imsub-line.fits) if there is one, else the residual.
     "large_scale": {
         "enable": True,
-        "products": "reference",  # 'reference' (residual if present), 'all', or a list
+        "products": "reference",  # 'reference' (line cube, else residual), 'all', or a list
         "sigma_arcsec": 120.0,  # Gaussian smoothing sigma
         "stride": 20,  # assess every stride-th channel
         "pb_limit": 0.5,  # with a *.pb.fits cube next to the cube
@@ -345,9 +346,9 @@ sessions:
     - root: /data/G23/1610268336_sdp_l0/caracal
     - root: /data/G23/1609151470_sdp_l0/caracal
 
-# Imaging products to load per cube. Defaults to the three below.
-# Use 'all' to plot every product discovered (dirty/image/residual/model/psf).
-products: [dirty, image, residual]
+# Imaging products to load per cube. 'line' is the continuum-subtracted cube
+# (imsub-line.fits) where a pointing has one. Use 'all' for every product found.
+products: [dirty, image, residual, line]
 
 # Optional pointing filter. null -> all pointings found in each session.
 pointings: null
@@ -415,10 +416,11 @@ thresholds:
     baseline_bad_sigma:  10.0  # ... -> Fail
 
 # Excess noise power on large angular scales. Smooths about nchan/stride channels per
-# cube, so by default only the reference product (residual if present) is assessed.
+# cube, so by default only one product per unit is assessed: the line cube
+# (imsub-line.fits) if there is one, else the residual.
 large_scale:
     enable: true
-    products: reference    # 'reference' | 'all' | [residual, image]
+    products: reference    # 'reference' (line, else residual) | 'all' | [line, residual]
     sigma_arcsec: 120.0    # Gaussian smoothing sigma
     stride: 20             # assess every stride-th channel
     pb_limit: 0.5          # used when a *.pb.fits cube sits next to the cube

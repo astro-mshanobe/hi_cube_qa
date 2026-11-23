@@ -26,7 +26,7 @@ from pathlib import Path
 # Products we know how to plot; used as the default selection and to order the
 # legend. Anything else discovered (e.g. "psf") is still available via
 # products: all.
-KNOWN_PRODUCTS = ("dirty", "image", "residual", "model", "psf")
+KNOWN_PRODUCTS = ("dirty", "image", "residual", "line", "model", "psf")
 
 _POINTING_RE = re.compile(r"^output_hi_(p\d+[a-z0-9_]*)$")
 _CUBE_RE = re.compile(r"^cube_(\w+)$")
@@ -101,12 +101,15 @@ def _parse_product(fits_path: Path) -> str | None:
 
         G23_..._HI.image.fits      -> 'image'
         G23_..._HI_1.residual.fits -> 'residual'
+        imsub-line.fits            -> 'line' (continuum-subtracted cube)
 
     Returns None for names without an alphabetic product token (e.g. channel
     split images like ...-0000-image.fits are still fine; truly unparseable
     names are skipped).
     """
     name = fits_path.name
+    if name == "imsub-line.fits":
+        return "line"
     if not name.endswith(".fits"):
         return None
     stem = name[: -len(".fits")]

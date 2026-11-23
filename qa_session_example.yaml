@@ -22,9 +22,9 @@ sessions:
     - root: /data/G23/1610268336_sdp_l0/caracal
     - root: /data/G23/1609151470_sdp_l0/caracal
 
-# Imaging products to load per cube. Defaults to the three below.
-# Use 'all' to plot every product discovered (dirty/image/residual/model/psf).
-products: [dirty, image, residual]
+# Imaging products to load per cube. 'line' is the continuum-subtracted cube
+# (imsub-line.fits) where a pointing has one. Use 'all' for every product found.
+products: [dirty, image, residual, line]
 
 # Optional pointing filter. null -> all pointings found in each session.
 pointings: null
@@ -92,10 +92,11 @@ thresholds:
     baseline_bad_sigma:  10.0  # ... -> Fail
 
 # Excess noise power on large angular scales. Smooths about nchan/stride channels per
-# cube, so by default only the reference product (residual if present) is assessed.
+# cube, so by default only one product per unit is assessed: the line cube
+# (imsub-line.fits) if there is one, else the residual.
 large_scale:
     enable: true
-    products: reference    # 'reference' | 'all' | [residual, image]
+    products: reference    # 'reference' (line, else residual) | 'all' | [line, residual]
     sigma_arcsec: 120.0    # Gaussian smoothing sigma
     stride: 20             # assess every stride-th channel
     pb_limit: 0.5          # used when a *.pb.fits cube sits next to the cube

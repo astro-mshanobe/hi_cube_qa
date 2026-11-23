@@ -112,6 +112,7 @@ PRODUCT_COLOUR = {
     "dirty": "#2E75B6",  # blue
     "image": "#E04B3A",  # red
     "residual": "#27AE60",  # green
+    "line": "#F39C12",  # orange
     "model": "#8E44AD",  # purple
     "psf": "#1ABC9C",  # teal
 }
@@ -171,7 +172,10 @@ def _noise_reference(labels_by_product: dict[str, str]) -> str | None:
 
 
 def _large_scale_wanted(selection, product: str, is_reference: bool) -> bool:
-    """Whether the large-scale check runs on this product (config large_scale.products)."""
+    """Whether the large-scale check runs on this product (config large_scale.products).
+
+    "reference" is the line cube if the unit has one, otherwise the noise reference.
+    """
     if selection == "all":
         return True
     if selection == "reference":
@@ -234,6 +238,11 @@ def assess_unit(
 
     ref_label = _noise_reference({cp.product: cp.label for cp in unit.products if cp.label in red})
     rref = red[ref_label]
+    for lab in [lab for lab in red if red[lab]["nchan"] != rref["nchan"]]:
+        logger.warning(
+            f"    [{lab}] has {red[lab]['nchan']} channels, not {rref['nchan']}: left out of this unit"
+        )
+        del red[lab]
     freq, vel = rref["freq_hz"], rref["vel_kms"]
     nchan = rref["nchan"]
     chan_dv = rref["chan_dv_kms"]
@@ -401,11 +410,17 @@ def assess_unit(
         "fail_ratio": thr["ls_fail_ratio"],
         "warn_fraction": thr["ls_warn_fraction"],
     }
+    # "reference" for this check: the continuum-subtracted line cube when the unit has one
+    ls_reference = (
+        "line"
+        if any(cp.product == "line" and cp.label in red for cp in unit.products)
+        else (next(cp.product for cp in unit.products if cp.label == ref_label))
+    )
     if ls_cfg.get("enable", True):
         for cp in unit.products:
             lab = cp.label
             if lab not in red or not _large_scale_wanted(
-                ls_cfg["products"], cp.product, lab == ref_label
+                ls_cfg["products"], cp.product, cp.product == ls_reference
             ):
                 continue
             try:

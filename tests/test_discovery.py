@@ -1,6 +1,6 @@
 """discovery: walking a CARACal session tree into pointing / cube units, with filters, plus flag-report discovery."""
 
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from helpers import raises, uses_tmp_path
 
@@ -126,3 +126,18 @@ def test_flag_report_discovery_disabled_or_empty(tmp_path):
     assert dc.discover_flag_reports(tmp_path, None) == ([], None)
     assert dc.discover_flag_reports(tmp_path, "") == ([], None)
     assert dc.discover_flag_reports(tmp_path, "*.json") == ([], None)
+
+
+@uses_tmp_path
+def test_continuum_subtracted_line_cube(tmp_path):
+    car = tmp_path / "1600000000_sdp_l0" / "caracal"
+    for name in ("G23_x_p7_HI.image.fits", "imsub-line.fits", "imsub.fits"):
+        _touch(car, "output_hi_p7", "cubes", "cube_2", name)
+    assert dc._parse_product(PurePath("imsub-line.fits")) == "line"
+    assert dc._parse_product(PurePath("imsub.fits")) == "imsub"
+    unit = dc.discover_session(car).units[0]
+    assert [p.product for p in unit.products] == ["image", "line", "imsub"]
+    assert [p.label for p in unit.products] == ["c2-image", "c2-line", "c2-imsub"]
+    assert [p.product for p in dc.discover_session(car, products=["line"]).units[0].products] == [
+        "line"
+    ]

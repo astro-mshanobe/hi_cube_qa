@@ -229,3 +229,40 @@ def test_large_scale_product_selection():
     assert wanted("all", "dirty", False) and wanted("reference", "residual", True)
     assert not wanted("reference", "dirty", False)
     assert wanted(["residual", "image"], "image", False) and not wanted(["residual"], "dirty", True)
+
+
+def _add_line_cubes(car, nchan=None):
+    """An imsub-line.fits next to the cubes of each pointing, copied from its residual cube."""
+    for path in car.glob("output_hi_p*/cubes/cube_*/*.residual.fits"):
+        with fits.open(path) as hdul:
+            data = hdul[0].data if nchan is None else hdul[0].data[:nchan]
+            fits.PrimaryHDU(data=data, header=hdul[0].header).writeto(
+                path.parent / "imsub-line.fits"
+            )
+
+
+def _stripes_and_line(car):
+    _slope_and_ripple(car)
+    _add_line_cubes(car)
+
+
+@uses_tmp_path
+def test_line_cube_is_the_reference_for_the_large_scale_check(tmp_path):
+    out, _ = _run(
+        tmp_path,
+        shape=(60, 256, 256),
+        tamper=_stripes_and_line,
+        extra_config="large_scale:\n  sigma_arcsec: 60.0\n  stride: 10\n",
+    )
+    bands = _band(out)
+    assert bands["p02/cube_1/c1-line"]["ls_status"] == "Fail"
+    assert bands["p01/cube_1/c1-line"]["ls_status"] == "Pass"
+    assert bands["p02/cube_1/c1-residual"]["ls_status"] == ""
+    assert bands["p02/cube_1/c1-line"]["baseline_sigma"] != ""
+
+
+@uses_tmp_path
+def test_a_line_cube_on_another_channel_grid_is_left_out(tmp_path):
+    out, _ = _run(tmp_path, tamper=lambda car: _add_line_cubes(car, nchan=10))
+    assert not [label for label in _band(out) if label.endswith("c1-line")]
+    assert "c1-residual" in " ".join(_band(out))

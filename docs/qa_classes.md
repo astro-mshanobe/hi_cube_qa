@@ -88,7 +88,7 @@ the per-channel MAD rms divided by the square root of the number of beams in the
 Pass below 5, Warn below 10, Fail otherwise (`thresholds.baseline_warn_sigma`,
 `baseline_bad_sigma`). Source: own choice for all of it; the 5 and 10 follow the kurtosis
 convention above. `hi-cube-qa-baseline` applies the same fit to cubes read from disk
-(default pattern `imsub-line.fits`, which discovery does not find).
+(default pattern `imsub-line.fits`).
 
 ### Large-scale noise
 
@@ -112,10 +112,16 @@ structure that covers only part of the field (unclipped ratio of 3 or more with 
 Source: the method and the limits are this project's own; there is no published reference
 for them here. The limits are judgement calls, chosen so that noise alone gives ratios of
 about 1 +- 0.15; on synthetic cubes noise alone, white or correlated, gives 0.85 to 1.15.
+The ratio depends on the cube. For p63 cube_2 of session 1610268336 the residual cube gives 1.40
+and the `imsub-line.fits` cube 1.11, with the same excess (0.036 and 0.037 mJy/beam) but a
+thermal estimate about half as large in the residual cube. The limits were first set on
+`imsub-line.fits` cubes, which is why the line cube is the default.
+
 Known blind spot: a pattern that is independent in every channel is in the difference map as
 well, so the thermal reference rises with it and the ratio stays near 1 (the thermal
 estimate itself then shows it). It smooths about nchan/stride channels per cube, so by default
-only the reference product is assessed (`large_scale.products`), and the image must hold at
+only one product per unit is assessed (`large_scale.products`: the continuum-subtracted
+`line` cube, `imsub-line.fits`, when the pointing has one, otherwise the residual), and the image must hold at
 least 25 smoothing areas after the edges are trimmed (about 450 pixels across for a 20-pixel
 sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports that it was not assessed.
 

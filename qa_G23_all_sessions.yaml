@@ -22,8 +22,8 @@ sessions:
     - root: /idia/projects/uct-mega-hi/G23/1610184417_sdp_l0/caracal
     - root: /idia/projects/uct-mega-hi/G23/1610268336_sdp_l0/caracal
 
-# Default three products. Set to 'all' to also pick up model/psf if present.
-products: [dirty, image, residual]
+# line = imsub-line.fits (continuum-subtracted), where a pointing has one. Use all for model/psf too.
+products: [dirty, image, residual, line]
 
 # null -> every pointing in each session. Restrict with e.g. [p63, p64].
 pointings: null

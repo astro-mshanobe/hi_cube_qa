@@ -11,6 +11,7 @@ How to set up hi_cube_qa on a laptop or a cluster and run it on your own cubes.
 <session>/caracal/
     output_hi_<pXX>/cubes/cube_1/*.<product>.fits    products: dirty, image, residual, ...
     output_hi_<pXX>/cubes/cube_2/*.<product>.fits
+    output_hi_<pXX>/cubes/cube_N/imsub-line.fits    continuum-subtracted cube, if present (product 'line')
     output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json    optional, for the flagged fractions
     output_hi_1gc/obsinfo/*-summary.json                        optional, for the antenna count
 ```
@@ -121,7 +122,8 @@ sbatch run_qa.sh my_config.yaml
 ```
 
 A full run reads every cube once. The large-scale noise check smooths about one channel in
-twenty of the reference product as well, which is what takes the time on large cubes.
+twenty of one product per unit (the continuum-subtracted `imsub-line.fits` where it exists, else
+the residual) as well, which adds to the time on large cubes.
 
 ## If something is missing
 

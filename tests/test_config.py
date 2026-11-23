@@ -108,7 +108,7 @@ def test_example_file_loads(tmp_path):
     user = yaml.safe_load(p.read_text())
     assert len(user["sessions"]) >= 1
     p.write_text(re.sub(r"root: \S+", f"root: {tmp_path}", p.read_text()))
-    assert cf.load_config(p).products == ["dirty", "image", "residual"]
+    assert cf.load_config(p).products == ["dirty", "image", "residual", "line"]
 
 
 @uses_tmp_path
