@@ -62,7 +62,7 @@ A YAML file; unspecified keys take the defaults in `src/hi_cube_qa/config.py`.
 | `radiometer.nfac` | weighting penalty on the noise: a number, or `auto` from the Briggs robust value |
 | `radiometer.flag_fraction` | `auto` (per pointing from the flag report), a number, or `null` |
 | `sensitivity.nhi_dv_kms`, `nsigma` | line width and significance of the quoted N_HI sensitivity |
-| `large_scale.*` | excess noise on large angular scales: `products` (`reference` = the line cube, else the residual; `all`; or a list), `sigma_arcsec` (120), `stride` (20), `pb_limit`, `min_channels`, `enable` |
+| `large_scale.*` | excess noise on large angular scales: `products` (`reference` = the line cube only; `all`; or a list), `sigma_arcsec` (120), `stride` (20), `pb_limit`, `min_channels`, `enable` |
 | `baseline.*` | baseline flatness: `degree` (1), `sigma_clip` (4), `enable` |
 | `plots.full_resolution`, `plots.max_points` | decimation of plotted traces; the CSVs are always full resolution |
 | `plots.initially_visible` | `all` (default) or a list such as `[residual, line]`: the products drawn when a figure opens. The others stay in the legend and a click switches them on |
@@ -103,8 +103,8 @@ beyond 5 and Bad beyond 10 standard errors from 3), and an eleven-item checklist
 Pass/Warn/Fail per unit. Two of its items are checks of their own, run on every cube: baseline
 flatness (the fitted trend of the per-channel mean, in standard errors of the mean, for every
 product) and large-scale noise (the rms of channel maps smoothed to 120 arcsec against what
-neighbouring channels give for noise alone, on one product per unit: the `line` cube when the
-pointing has one, otherwise the residual cube). Each has its own figure in the report.
+neighbouring channels give for noise alone, on the `line` cube; units without one are marked
+not assessed). Each has its own figure in the report.
 `hi-cube-qa-baseline` runs the baseline check on its own, on any cube you point it at.
 These limits are conventions chosen for this toolkit, not published values. The definitions,
 and where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).

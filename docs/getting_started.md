@@ -124,8 +124,8 @@ sbatch run_qa.sh my_config.yaml
 ```
 
 A full run reads every cube once. The large-scale noise check smooths about one channel in
-twenty of one product per unit (the continuum-subtracted `imsub-line.fits` where it exists, else
-the residual) as well, which adds to the time on large cubes.
+twenty of the continuum-subtracted `imsub-line.fits` cube as well, where a unit has one, which
+adds to the time on large cubes.
 
 ## If something is missing
 

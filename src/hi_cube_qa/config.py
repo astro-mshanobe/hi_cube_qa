@@ -106,11 +106,11 @@ DEFAULTS: dict[str, Any] = {
         "clip_iterations": 3,
     },
     # Excess noise power on large angular scales (large_scale.py). It smooths about
-    # nchan/stride channels per cube, so by default only one product per unit is assessed:
-    # the continuum-subtracted line cube (imsub-line.fits) if there is one, else the residual.
+    # nchan/stride channels per cube, so by default only the continuum-subtracted line cube
+    # (imsub-line.fits) is assessed; units without one are reported as not assessed.
     "large_scale": {
         "enable": True,
-        "products": "reference",  # 'reference' (line cube, else residual), 'all', or a list
+        "products": "reference",  # 'reference' (the line cube), 'all', or a list
         "sigma_arcsec": 120.0,  # Gaussian smoothing sigma
         "stride": 20,  # assess every stride-th channel
         "pb_limit": 0.5,  # with a *.pb.fits cube next to the cube
@@ -425,11 +425,11 @@ thresholds:
     baseline_bad_sigma:  10.0  # ... -> Fail
 
 # Excess noise power on large angular scales. Smooths about nchan/stride channels per
-# cube, so by default only one product per unit is assessed: the line cube
-# (imsub-line.fits) if there is one, else the residual.
+# cube, so by default only the line cube (imsub-line.fits) is assessed; units
+# without one are reported as not assessed.
 large_scale:
     enable: true
-    products: reference    # 'reference' (line, else residual) | 'all' | [line, residual]
+    products: reference    # 'reference' (the line cube) | 'all' | [line, residual]
     sigma_arcsec: 120.0    # Gaussian smoothing sigma
     stride: 20             # assess every stride-th channel
     pb_limit: 0.5          # used when a *.pb.fits cube sits next to the cube

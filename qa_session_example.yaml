@@ -94,11 +94,11 @@ thresholds:
     baseline_bad_sigma:  10.0  # ... -> Fail
 
 # Excess noise power on large angular scales. Smooths about nchan/stride channels per
-# cube, so by default only one product per unit is assessed: the line cube
-# (imsub-line.fits) if there is one, else the residual.
+# cube, so by default only the line cube (imsub-line.fits) is assessed; units
+# without one are reported as not assessed.
 large_scale:
     enable: true
-    products: reference    # 'reference' (line, else residual) | 'all' | [line, residual]
+    products: reference    # 'reference' (the line cube) | 'all' | [line, residual]
     sigma_arcsec: 120.0    # Gaussian smoothing sigma
     stride: 20             # assess every stride-th channel
     pb_limit: 0.5          # used when a *.pb.fits cube sits next to the cube

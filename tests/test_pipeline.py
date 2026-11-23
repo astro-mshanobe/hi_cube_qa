@@ -134,7 +134,7 @@ def test_baseline_and_large_scale_checks(tmp_path):
         tmp_path,
         shape=(60, 256, 256),
         tamper=_slope_and_ripple,
-        extra_config="large_scale:\n  sigma_arcsec: 60.0\n  stride: 10\n",
+        extra_config="large_scale:\n  products: [residual]\n  sigma_arcsec: 60.0\n  stride: 10\n",
     )
     obsid = "1600000000_sdp_l0"
     checks = {(r["cube_label"], r["criterion"]): r for r in _rows(out / f"{obsid}_checklist.csv")}
@@ -211,7 +211,7 @@ def test_baseline_sigma_clip_setting(tmp_path):
 
 @uses_tmp_path
 def test_large_scale_limits_come_from_the_thresholds(tmp_path):
-    cfg = "large_scale:\n  sigma_arcsec: 60.0\n  stride: 10\n"
+    cfg = "large_scale:\n  products: [residual]\n  sigma_arcsec: 60.0\n  stride: 10\n"
     out, _ = _run(
         tmp_path, shape=(60, 256, 256), extra_config=cfg + "thresholds:\n  ls_warn_ratio: 0.5\n"
     )
@@ -226,9 +226,9 @@ def test_large_scale_limits_come_from_the_thresholds(tmp_path):
 
 def test_large_scale_product_selection():
     wanted = qa_cli._large_scale_wanted
-    assert wanted("all", "dirty", False) and wanted("reference", "residual", True)
-    assert not wanted("reference", "dirty", False)
-    assert wanted(["residual", "image"], "image", False) and not wanted(["residual"], "dirty", True)
+    assert wanted("all", "dirty") and wanted("reference", "line")
+    assert not wanted("reference", "residual") and not wanted("reference", "dirty")
+    assert wanted(["residual", "image"], "image") and not wanted(["residual"], "dirty")
 
 
 def _add_line_cubes(car, nchan=None):
@@ -254,10 +254,14 @@ def test_line_cube_is_the_reference_for_the_large_scale_check(tmp_path):
         tamper=_stripes_and_line,
         extra_config="large_scale:\n  sigma_arcsec: 60.0\n  stride: 10\n",
     )
+    obsid = "1600000000_sdp_l0"
     bands = _band(out)
     assert bands["p02/cube_1/c1-line"]["ls_status"] == "Fail"
     assert bands["p01/cube_1/c1-line"]["ls_status"] == "Pass"
     assert bands["p02/cube_1/c1-residual"]["ls_status"] == ""
+    checks = {(r["cube_label"], r["criterion"]): r for r in _rows(out / f"{obsid}_checklist.csv")}
+    note = checks[("p02/cube_1/c1-residual", "Low large-scale noise")]["note"]
+    assert note == "Not assessed for this product"
     assert bands["p02/cube_1/c1-line"]["baseline_sigma"] != ""
 
 
@@ -312,3 +316,15 @@ def test_initially_visible_hides_the_other_products(tmp_path):
             figure
         )
         assert {"c1-residual", "c1-line"} <= shown, figure
+
+
+@uses_tmp_path
+def test_units_without_a_line_cube_are_not_assessed_for_large_scale_noise(tmp_path):
+    out, _ = _run(tmp_path)
+    checks = {
+        (r["cube_label"], r["criterion"]): r for r in _rows(out / "1600000000_sdp_l0_checklist.csv")
+    }
+    residual = checks[("p01/cube_1/c1-residual", "Low large-scale noise")]
+    assert residual["status"] == "N/A" and "no imsub-line.fits" in residual["note"]
+    assert "Not assessed" in checks[("p01/cube_1/c1-image", "Low large-scale noise")]["note"]
+    assert _band(out)["p01/cube_1/c1-residual"]["ls_status"] == ""

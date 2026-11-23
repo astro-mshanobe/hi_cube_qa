@@ -115,13 +115,14 @@ about 1 +- 0.15; on synthetic cubes noise alone, white or correlated, gives 0.85
 The ratio depends on the cube. For p63 cube_2 of session 1610268336 the residual cube gives 1.40
 and the `imsub-line.fits` cube 1.11, with the same excess (0.036 and 0.037 mJy/beam) but a
 thermal estimate about half as large in the residual cube. The limits were first set on
-`imsub-line.fits` cubes, which is why the line cube is the default.
+`imsub-line.fits` cubes, which is why only the line cube is graded by default; a residual
+cube can be listed in `large_scale.products`, but its ratios run higher.
 
 Known blind spot: a pattern that is independent in every channel is in the difference map as
 well, so the thermal reference rises with it and the ratio stays near 1 (the thermal
 estimate itself then shows it). It smooths about nchan/stride channels per cube, so by default
-only one product per unit is assessed (`large_scale.products`: the continuum-subtracted
-`line` cube, `imsub-line.fits`, when the pointing has one, otherwise the residual), and the image must hold at
+only the continuum-subtracted `line` cube (`imsub-line.fits`) is assessed by default
+(`large_scale.products`), and units without one are reported as not assessed; the image must hold at
 least 25 smoothing areas after the edges are trimmed (about 450 pixels across for a 20-pixel
 sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports that it was not assessed.
 
