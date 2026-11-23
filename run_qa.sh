@@ -12,7 +12,7 @@
 # hi_cube_qa -- Slurm job for per-session HI cube QA
 #
 # Usage:
-#   cd ~/workspace/hi_cube_qa
+#   cd <the repository checkout>      # the script runs from the directory you submit from
 #   sbatch run_qa.sh                       # uses qa_G23_all_sessions.yaml
 #   sbatch run_qa.sh my_config.yaml        # or a custom config
 #
@@ -35,10 +35,9 @@ echo "  Node    : $(hostname)"
 echo "  Config  : ${CONFIG}"
 echo "=========================================="
 
-cd ~/workspace/hi_cube_qa
+cd "${SLURM_SUBMIT_DIR}"
 
-export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
-singularity exec ${CONTAINER} python3 -m hi_cube_qa --config "${CONFIG}"
+singularity exec --env PYTHONPATH="${PWD}/src" ${CONTAINER} python3 -m hi_cube_qa --config "${CONFIG}"
 
 echo ""
 echo "=========================================="

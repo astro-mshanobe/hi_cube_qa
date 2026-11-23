@@ -44,8 +44,10 @@ sbatch run_qa.sh my_config.yaml
 sbatch run_baseline_flatness.sh  # baseline flatness check (below)
 ```
 
-Both scripts `cd ~/workspace/hi_cube_qa`, set `PYTHONPATH` to `src/` and run inside the
-`ASTRO-PY3.12` container.
+Both scripts run from the directory you submit from, pass `PYTHONPATH=<that directory>/src`
+to the `ASTRO-PY3.12` container with `singularity exec --env`, and need the repository
+checkout (including `src/`) there. Use `sbatch --wrap` on the login node, which has no
+Singularity.
 
 ## How a session is organised
 
@@ -273,7 +275,7 @@ copy of the earlier hand-written clipping loop.
 On the cluster, inside the container:
 
 ```sh
-PYTHONPATH=src singularity exec /software/astro/containers/ASTRO-PY3.12-latest.sif python3 tests/run_tests.py
+singularity exec --env PYTHONPATH=$PWD/src /software/astro/containers/ASTRO-PY3.12-latest.sif python3 tests/run_tests.py
 ```
 
 ## Documentation
