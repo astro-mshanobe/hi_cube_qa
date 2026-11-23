@@ -112,7 +112,7 @@ PRODUCT_COLOUR = {
     "dirty": "#2E75B6",  # blue
     "image": "#E04B3A",  # red
     "residual": "#27AE60",  # green
-    "line": "#F39C12",  # orange
+    "line": "#E84393",  # pink
     "model": "#8E44AD",  # purple
     "psf": "#1ABC9C",  # teal
 }
