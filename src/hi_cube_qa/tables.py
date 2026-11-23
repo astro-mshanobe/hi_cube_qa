@@ -12,11 +12,11 @@ import numpy as np
 #  tables.py: CSV export and structured stdout.
 #
 ##############################################################################
-def setup_logger(log_path: Path | None = None) -> logging.Logger:   # FIX: logging.logger -> Logger
+def setup_logger(log_path: Path | None = None) -> logging.Logger:
     """
     Return a logger that prints to stdout and (optionally) writes to *log_path*.
     """
-    logger = logging.getLogger("hi_cube_qa")                        # FIX: getlogger -> getLogger
+    logger = logging.getLogger("hi_cube_qa")
     logger.setLevel(logging.DEBUG)
     logger.handlers.clear()
 
@@ -25,7 +25,7 @@ def setup_logger(log_path: Path | None = None) -> logging.Logger:   # FIX: loggi
             datefmt="%Y-%m-%d %H:%M:%S",
             )
 
-    sh = logging.StreamHandler(sys.stdout)                          # FIX: sys.stout -> sys.stdout
+    sh = logging.StreamHandler(sys.stdout)
     sh.setLevel(logging.INFO)
     sh.setFormatter(fmt)
     logger.addHandler(sh)
@@ -91,7 +91,7 @@ def write_channel_csv(
                 label,
                 i,
                 f"{freq_hz[i] / 1e6:.4f}",
-                f"{vel_kms[i]:.2f}",                            # FIX: was f"{vel_kms[i]}:.2f"
+                f"{vel_kms[i]:.2f}",
                 f"{rms[i] * 1e3:.4f}" if np.isfinite(rms[i]) else "NaN",
                 f"{ratio:.4f}" if ratio != "" else "",
                 quality[i],
@@ -261,7 +261,7 @@ def build_expert_checklist(
         else:
             status     = "N/A"
             value      = "-"
-        rows.append(_row(label, CHECKLIST_CRITERIA[3], status, value))  # FIX: was inside else block
+        rows.append(_row(label, CHECKLIST_CRITERIA[3], status, value))
 
         #--- Beam stability ---
         if bd.get("available"):
@@ -370,12 +370,12 @@ def print_summary(
     #--- Per-cube noise ---
     for label, ns in noise_summaries.items():
         logger.info(f"  [{label}]")
-        logger.info(f"    Median RMS  : {ns['median_rms_mjy']:.4f} mJy/beam "  # FIX: ns[medina_rms_mjy]
+        logger.info(f"    Median RMS  : {ns['median_rms_mjy']:.4f} mJy/beam "
                     f"(min {ns['min_rms_mjy']:.4f}, max {ns['max_rms_mjy']:.4f})")
         if ns["rms_to_theory"] is not None:
             logger.info(f"    RMS/theory  : {ns['rms_to_theory']:.2f}x")
         logger.info(f"    Channels   : {ns['n_good']} Good / {ns['n_warn']} Warn "
-                    f"/ {ns['n_bad']} Bad (of {ns['n_total']} total)")          # FIX: ns[ns['n_total']]
+                    f"/ {ns['n_bad']} Bad (of {ns['n_total']} total)")
         logger.info(f"    Overall   : {ns['overall_quality']}")
 
         bd = beam_diags.get(label, {})

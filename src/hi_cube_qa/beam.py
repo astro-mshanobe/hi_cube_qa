@@ -10,7 +10,7 @@ from astropy.io import fits
 #
 ################################################################################
 def beam_stats(
-        hdr: fits.Header,              # FIX: was fits.header (lowercase)
+        hdr: fits.Header,
         nchan: int,
         ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
     """
@@ -115,7 +115,7 @@ def beam_diagnostics(
     """
     Compute summary statistics for the synthesised beam across channels.
     """
-    if bmaj is None:                    # FIX: was "bmaj in None"
+    if bmaj is None:
         return {"available": False}
 
     finite = np.isfinite(bmaj)

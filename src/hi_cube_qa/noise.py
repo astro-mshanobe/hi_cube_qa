@@ -59,7 +59,6 @@ def mad_rms_planes(block: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Vectorised per-plane median and MAD-RMS for a (nchan, ny, nx) block.
 
     NaNs are ignored. Returns (median, sigma_mad), each shape (nchan,).
-    This replaces the old per-channel Python loop and is ~10-50x faster.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)   # all-NaN planes
@@ -134,15 +133,6 @@ def classify_kurtosis(
     return quality
 
 
-def per_channel_rms(data: np.ndarray, progress: bool = False) -> np.ndarray:
-    """
-    MAD-based RMS for every spectral channel (kept for backward compatibility).
-    Vectorised; *progress* is accepted but ignored.
-    """
-    _med, sig = mad_rms_planes(np.asarray(data))
-    return sig
-
-
 def peak_channel_rms(data: np.ndarray) -> np.ndarray:
     """Per-channel max |pixel| -- proxy for worst-case artefacts/RFI."""
     with warnings.catch_warnings():
@@ -163,8 +153,7 @@ def boresight_rms(
 
     Measures noise at boresight where the primary-beam response is highest,
     after iterative MAD sigma-clipping to reject source pixels. Uses the MAD
-    estimator throughout for consistency with per_channel_rms (the previous
-    version reported a clipped standard deviation).
+    estimator throughout for consistency with mad_rms_planes.
     """
     data = np.asarray(data)
     nchan, ny, nx = data.shape
