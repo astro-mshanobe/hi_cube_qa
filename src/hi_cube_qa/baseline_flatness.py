@@ -42,6 +42,8 @@ import sys
 import warnings
 
 import numpy as np
+from astropy.modeling import fitting, models
+from astropy.stats import sigma_clip
 
 from .config import load_config
 from .reduce import CubeHandle, _pix_per_beam
@@ -67,36 +69,33 @@ def per_channel_mean_rms(h: CubeHandle, chunk: int = 64):
 
 def _robust_polyfit(x, y, degree, n_sigma=4.0, n_iter=3):
     """
-    Iterative sigma-clipped polynomial fit. A handful of outlier channels
-    (residual RFI, under-flagged bad channels, ...) can otherwise dominate
-    an ordinary least-squares fit's slope even when the bulk of the band is
-    flat -- a few high-leverage points is exactly the failure mode this
-    check needs to be robust against, since it's meant to catch a genuine
-    SMOOTH systematic trend (the thing that creates mosaic seams), not
-    isolated bad channels (a separate, already-covered concern).
+    Sigma-clipped polynomial fit. A handful of outlier channels (residual
+    RFI, under-flagged bad channels, ...) can otherwise dominate an ordinary
+    least-squares fit's slope even when the bulk of the band is flat -- a few
+    high-leverage points is exactly the failure mode this check needs to be
+    robust against, since it is meant to catch a genuine SMOOTH systematic
+    trend (the thing that creates mosaic seams), not isolated bad channels.
+
+    Outliers are identified with astropy's FittingWithOutlierRemoval (median
+    centre, MAD-based sigma, refit between clips); the returned coefficients
+    are an ordinary least-squares fit to the retained points, in np.polyval
+    order.
 
     Returns (coeffs, keep_mask) -- keep_mask is True for points used in the
     final fit. n_sigma <= 0 disables clipping (keep_mask is all True).
     """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
     keep = np.ones(len(x), dtype=bool)
-    coeffs = np.polyfit(x, y, degree)
-    if n_sigma <= 0:
-        return coeffs, keep
-    for _ in range(n_iter):
-        fit = np.polyval(coeffs, x)
-        resid = y - fit
-        med = np.median(resid[keep])
-        mad = np.median(np.abs(resid[keep] - med))
-        sigma = 1.4826 * mad if mad > 0 else float(np.std(resid[keep]))
-        if sigma <= 0 or not np.isfinite(sigma):
-            break
-        new_keep = np.abs(resid - med) < n_sigma * sigma
-        if new_keep.sum() < degree + 2 or np.array_equal(new_keep, keep):
-            keep = new_keep if new_keep.sum() >= degree + 2 else keep
-            break
-        keep = new_keep
-        coeffs = np.polyfit(x[keep], y[keep], degree)
-    return coeffs, keep
+    if n_sigma > 0:
+        xs = (x - x.mean()) / (np.ptp(x) or 1.0)          # conditioning only
+        fitter = fitting.FittingWithOutlierRemoval(
+            fitting.LinearLSQFitter(), sigma_clip, niter=n_iter,
+            sigma=n_sigma, cenfunc="median", stdfunc="mad_std", maxiters=1)
+        _, rejected = fitter(models.Polynomial1D(degree), xs, y)
+        if (~rejected).sum() >= degree + 2:
+            keep = ~rejected
+    return np.polyfit(x[keep], y[keep], degree), keep
 
 
 def baseline_check(h: CubeHandle, degree: int = 1, chunk: int = 64,

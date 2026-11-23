@@ -110,3 +110,21 @@ def test_clean_data_clips_almost_nothing():
     _, keep = _robust_polyfit(x, y, 1)
     assert (~keep).sum() <= 4        # 4-sigma clip of Gaussian noise: ~0.006% expected
 
+
+
+def test_clipping_uses_the_median_and_mad_so_a_contaminated_minority_does_not_hide_itself():
+    rng = np.random.default_rng(0)
+    x = np.linspace(-100.0, 100.0, 200)
+    y = rng.normal(0.0, 1.0, x.size)
+    bad = rng.random(x.size) < 0.15
+    y[bad] += 20.0
+    _, keep = _robust_polyfit(x, y, 1)
+    assert not keep[bad].any()
+    assert keep[~bad].all()                 # a mean-centred clip would also reject some clean points
+
+
+def test_a_clip_that_would_leave_too_few_points_for_the_degree_keeps_every_point():
+    x = np.arange(4.0)
+    y = np.array([-50.7, -1.4, -0.2, -0.9])       # clipping the first point would leave 3, fewer than the 5 a cubic needs
+    _, keep = _robust_polyfit(x, y, 3)
+    assert keep.all()

@@ -5,6 +5,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+from astropy import units as u
 from astropy.io import fits
 from astropy.wcs import WCS
 ##############################################################################
@@ -46,6 +47,21 @@ def _get_rest_freq(hdr):
             return float(val)
     return HI_REST_FREQ_HZ   # default to HI 21cm
 
+_KMS = u.km / u.s
+
+
+def _hz_to_radio_kms(freq_hz, rest_hz):
+    """Frequency -> radio-convention velocity (astropy doppler_radio)."""
+    return (np.asarray(freq_hz, dtype=float) * u.Hz).to(
+            _KMS, u.doppler_radio(rest_hz * u.Hz)).value
+
+
+def _radio_kms_to_hz(vel_kms, rest_hz):
+    """Radio-convention velocity -> frequency (astropy doppler_radio)."""
+    return (np.asarray(vel_kms, dtype=float) * _KMS).to(
+            u.Hz, u.doppler_radio(rest_hz * u.Hz)).value
+
+
 def frequency_velocity(hdr, nchan: int, quiet: bool = False) -> tuple:
     """
     Build matched (freq_hz, vel_kms) arrays of length *nchan* from a header.
@@ -68,23 +84,24 @@ def frequency_velocity(hdr, nchan: int, quiet: bool = False) -> tuple:
 
         if spec_type == "FREQ":
             freq_hz = pix_vals
-            vel_kms = C_KMS * (rest_freq - freq_hz) / rest_freq
+            vel_kms = _hz_to_radio_kms(freq_hz, rest_freq)
         elif spec_type in ("VELO", "VRAD"):
             cunit   = hdr.get(f"CUNIT{spec_ax}", "m/s").strip().lower()
             vel_kms = pix_vals if cunit == "km/s" else pix_vals / 1e3
-            freq_hz = rest_freq * (1.0 - vel_kms / C_KMS)
+            freq_hz = _radio_kms_to_hz(vel_kms, rest_freq)
         elif spec_type == "VOPT":
             cunit   = hdr.get(f"CUNIT{spec_ax}", "m/s").strip().lower()
             vel_opt = pix_vals if cunit == "km/s" else pix_vals / 1e3
-            freq_hz = rest_freq / (1.0 + vel_opt / C_KMS)
-            vel_kms = C_KMS * (rest_freq - freq_hz) / rest_freq
+            freq_hz = (vel_opt * _KMS).to(
+                    u.Hz, u.doppler_optical(rest_freq * u.Hz)).value
+            vel_kms = _hz_to_radio_kms(freq_hz, rest_freq)
 
         if freq_hz is not None and len(freq_hz) != nchan:
             freq_hz = vel_kms = None   # header axis disagrees with data
 
     if freq_hz is None:
         freq_hz = np.linspace(1.30e9, 1.43e9, nchan)
-        vel_kms = C_KMS * (rest_freq - freq_hz) / rest_freq
+        vel_kms = _hz_to_radio_kms(freq_hz, rest_freq)
         if not quiet:
             warnings.warn(
                     "[io_utils] No usable spectral axis; using a dummy frequency "
