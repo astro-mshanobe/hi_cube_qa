@@ -158,6 +158,7 @@ def write_band_summary_csv(
             "ls_frac_above": f"{ls['frac_above']:.3f}" if ls.get("available") else "",
             "ls_median_excess_mjy": f"{ls['median_excess']:.4f}" if ls.get("available") else "",
             "ls_median_corr": f"{ls['median_corr']:.3f}" if ls.get("available") else "",
+            "n_no_beam": ns.get("n_excluded", 0),
             "n_good": ns["n_good"],
             "n_warn": ns["n_warn"],
             "n_bad": ns["n_bad"],
@@ -272,7 +273,9 @@ def build_expert_checklist(
         # Few bad channels (< 5%)
         pct_bad = ns["pct_bad"]
         status = "Pass" if pct_bad < 5 else "Warn" if pct_bad < 15 else "Fail"
-        rows.append(_row(label, CHECKLIST_CRITERIA[1], status, f"{pct_bad:.1f}%"))
+        left_out = ns.get("n_excluded", 0)
+        note = f"{left_out} channel(s) without a beam left out" if left_out else ""
+        rows.append(_row(label, CHECKLIST_CRITERIA[1], status, f"{pct_bad:.1f}%", note))
 
         # No catastrophic channels (< 15%)
         status = "Pass" if pct_bad < 15 else "Fail"

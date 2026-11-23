@@ -17,6 +17,7 @@ from . import figures, obsinfo
 
 # Local modules
 from .baseline_flatness import baseline_from_spectra
+from .beam import valid_beam
 from .config import QAConfig, load_config, write_example_config
 from .discovery import Unit, discover_flag_reports, discover_session, summarise
 from .figures import (
@@ -297,8 +298,10 @@ def assess_unit(
         quality = classify_channels(
             rms, theory_flag, warn_factor=thr["rms_warn_factor"], bad_factor=thr["rms_bad_factor"]
         )
-        ns = channel_summary(rms, quality, theory_flag)
         bmaj, bmin, bpa = r["beam"]
+        # channels without a beam are empty: leave them out of the statistics and the plots
+        no_beam = ~valid_beam(bmaj, bmin) if bmaj is not None else np.zeros(len(rms), dtype=bool)
+        ns = channel_summary(rms, quality, theory_flag, exclude=no_beam)
         bd = r["beam_diag"]
 
         # N_HI sensitivity from the band-median RMS and median beam
@@ -330,7 +333,12 @@ def assess_unit(
         sigma_int = med_rms * np.sqrt(max(r["n_finite_med"], 1.0) / ppb)
 
         rms_dict[lab] = (rms, col, quality)
-        beam_dict[lab] = (bmaj, bmin, bpa, col)
+        beam_dict[lab] = (
+            None if bmaj is None else np.where(no_beam, np.nan, bmaj),
+            None if bmin is None else np.where(no_beam, np.nan, bmin),
+            None if bpa is None else np.where(no_beam, np.nan, bpa),
+            col,
+        )
         beam_arrays[lab] = (bmaj, bmin, bpa)
         noise_sums[lab] = ns
         beam_diags[lab] = bd
@@ -368,16 +376,20 @@ def assess_unit(
             warn_sigma=thr.get("kurtosis_warn_sigma", 5.0),
             bad_sigma=thr.get("kurtosis_bad_sigma", 10.0),
         )
-        n_total_k = len(kurt_arr)
-        pct_bad_k = float(np.sum(kurt_qual == "Bad")) / n_total_k * 100 if n_total_k else 0.0
-        pct_warn_k = float(np.sum(kurt_qual == "Warn")) / n_total_k * 100 if n_total_k else 0.0
+        n_total_k = int(np.sum(~no_beam))
+        pct_bad_k = (
+            float(np.sum((kurt_qual == "Bad") & ~no_beam)) / n_total_k * 100 if n_total_k else 0.0
+        )
+        pct_warn_k = (
+            float(np.sum((kurt_qual == "Warn") & ~no_beam)) / n_total_k * 100 if n_total_k else 0.0
+        )
 
         # The CHILES cross-reference: distinguish "catastrophic" channels (bad on
         # both RMS and shape) from "mild band-wide non-Gaussianity" (kurtosis bad,
         # RMS still fine) - two different failure modes the RMS check alone
         # cannot separate.
-        rms_bad_mask = quality == "Bad"
-        kurt_bad_mask = kurt_qual == "Bad"
+        rms_bad_mask = (quality == "Bad") & ~no_beam
+        kurt_bad_mask = (kurt_qual == "Bad") & ~no_beam
         n_both = int(np.sum(rms_bad_mask & kurt_bad_mask))
         n_kurt_only = int(np.sum(kurt_bad_mask & ~rms_bad_mask))
         n_rms_only = int(np.sum(rms_bad_mask & ~kurt_bad_mask))
@@ -385,6 +397,8 @@ def assess_unit(
             f"{n_kurt_only} ch non-Gaussian w/ RMS OK, "
             f"{n_both} ch bad on both, {n_rms_only} ch RMS-bad but Gaussian"
         )
+        if no_beam.any():
+            xref_note += f"; {int(no_beam.sum())} ch without a beam left out"
 
         kurt_dict[lab] = {"kurtosis": kurt_arr, "se": se_arr, "colour": col}
         kurt_by_label[lab] = {

@@ -102,3 +102,28 @@ def test_baseline_limits_default_to_5_and_10():
         baseline_by_label={"c": _baseline(5.5)},
     )  # fmt: skip
     assert {r["criterion"]: r["status"] for r in rows}["Flat baseline"] == "Warn"
+
+
+def test_checklist_notes_the_channels_left_out():
+    ns = dict(NS, n_excluded=103)
+    rows = tables.build_expert_checklist(
+        {"c": ns}, {"c": {"available": False}}, {"c": np.ones(20)}, THRESHOLDS
+    )
+    notes = {r["criterion"]: r["note"] for r in rows}
+    assert notes["Few bad channels (< 5%)"] == "103 channel(s) without a beam left out"
+    plain = tables.build_expert_checklist(
+        {"c": NS}, {"c": {"available": False}}, {"c": np.ones(20)}, THRESHOLDS
+    )
+    assert {r["criterion"]: r["note"] for r in plain}["Few bad channels (< 5%)"] == ""
+
+
+@uses_tmp_path
+def test_band_summary_counts_the_channels_without_a_beam(tmp_path):
+    ns = dict(
+        n_total=20, median_rms_mjy=1.0, min_rms_mjy=0.9, max_rms_mjy=1.1, std_rms_mjy=0.05,
+        theory_rms_mjy=0.4, rms_to_theory=2.5, n_good=20, n_warn=0, n_bad=0, pct_bad=0.0,
+        overall_quality="Good", n_excluded=7,
+    )  # fmt: skip
+    path = tmp_path / "band.csv"
+    tables.write_band_summary_csv(path, {"a": ns}, {"a": {}}, None)
+    assert next(csv.DictReader(open(path)))["n_no_beam"] == "7"

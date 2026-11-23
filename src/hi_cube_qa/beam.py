@@ -109,20 +109,35 @@ def beam_stats(
     return None, None, None
 
 
+def valid_beam(bmaj, bmin=None) -> np.ndarray:
+    """Channels with a usable beam: finite and positive. WSClean writes a zero beam to empty channels."""
+    ok = np.isfinite(bmaj) & (np.asarray(bmaj) > 0)
+    if bmin is not None:
+        ok &= np.isfinite(bmin) & (np.asarray(bmin) > 0)
+    return ok
+
+
 def beam_diagnostics(
     bmaj: np.ndarray | None,
     bmin: np.ndarray | None,
     bpa: np.ndarray | None,
     scatter_warn_asec: float = 0.5,
 ) -> dict:
-    """Compute summary statistics for the synthesised beam across channels."""
+    """Compute summary statistics for the synthesised beam across channels.
+
+    Channels without a usable beam (zero or not finite, see valid_beam) are left out; their
+    number is reported as n_no_beam. Without any channel that has a beam the result is
+    unavailable.
+    """
     if bmaj is None:
         return {"available": False}
 
-    finite = np.isfinite(bmaj)
-    bmaj_f = bmaj[finite]
-    bmin_f = bmin[finite] if bmin is not None else bmaj_f * np.nan
-    bpa_f = bpa[finite] if bpa is not None else np.zeros_like(bmaj_f)
+    usable = valid_beam(bmaj, bmin)
+    if not usable.any():
+        return {"available": False}
+    bmaj_f = bmaj[usable]
+    bmin_f = bmin[usable] if bmin is not None else bmaj_f * np.nan
+    bpa_f = bpa[usable] if bpa is not None else np.zeros_like(bmaj_f)
 
     med_bmaj = float(np.nanmedian(bmaj_f))
     med_bmin = float(np.nanmedian(bmin_f))
@@ -159,4 +174,5 @@ def beam_diagnostics(
         "beam_area_asec2": beam_area,
         "axial_ratio": axial,
         "bmaj_scatter_quality": scatter_quality,
+        "n_no_beam": int((~usable).sum()),
     }

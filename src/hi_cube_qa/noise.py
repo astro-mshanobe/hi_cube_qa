@@ -418,15 +418,24 @@ def channel_summary(
     rms: np.ndarray,
     quality: np.ndarray,
     theory: float | np.ndarray | None,
+    exclude: np.ndarray | None = None,
 ) -> dict:
-    """Aggregate per-channel results into a band-level summary."""
+    """Aggregate per-channel results into a band-level summary.
+
+    Channels flagged in *exclude* (for example those with no beam, which carry no data) are
+    left out of the counts, the percentages and the rms statistics; they stay in n_total.
+    """
     rms = np.asarray(rms, dtype=float)
+    quality = np.asarray(quality, dtype=object)
     n_total = len(rms)
+    keep = np.ones(n_total, dtype=bool) if exclude is None else ~np.asarray(exclude, dtype=bool)
+    rms, quality = rms[keep], quality[keep]
+    n_graded = len(rms)
     n_good = int(np.sum(quality == GOOD))
     n_warn = int(np.sum(quality == WARN))
     n_bad = int(np.sum(quality == BAD))
-    pct_bad = n_bad / n_total * 100 if n_total else 0.0
-    pct_warn = n_warn / n_total * 100 if n_total else 0.0
+    pct_bad = n_bad / n_graded * 100 if n_graded else 0.0
+    pct_warn = n_warn / n_graded * 100 if n_graded else 0.0
 
     # Headline "median RMS": the clean-channel noise floor when Good channels
     # exist, else fall back to all finite channels so a uniformly noisy (but
@@ -476,6 +485,7 @@ def channel_summary(
         "n_warn": n_warn,
         "n_bad": n_bad,
         "n_total": n_total,
+        "n_excluded": n_total - n_graded,
         "pct_bad": pct_bad,
         "pct_warn": pct_warn,
         "overall_quality": overall,

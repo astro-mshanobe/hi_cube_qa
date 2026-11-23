@@ -95,3 +95,39 @@ def test_bmaj_scatter_flag():
 
 def test_diagnostics_without_beam():
     assert bm.beam_diagnostics(None, None, None) == {"available": False}
+
+
+def test_valid_beam():
+    bmaj = np.array([20.0, 0.0, np.nan, -1.0, 20.0])
+    bmin = np.array([15.0, 15.0, 15.0, 15.0, 0.0])
+    assert list(bm.valid_beam(bmaj)) == [True, False, False, False, True]
+    assert list(bm.valid_beam(bmaj, bmin)) == [True, False, False, False, False]
+
+
+def test_diagnostics_leave_out_channels_without_a_beam():
+    bmaj = np.array([20.0, 20.1, 0.0, 0.0, 19.9, 20.0])
+    bmin = np.array([15.0, 15.1, 0.0, 0.0, 14.9, 15.0])
+    bpa = np.array([10.0, 10.0, 0.0, 0.0, 10.0, 10.0])
+    d = bm.beam_diagnostics(bmaj, bmin, bpa)
+    assert d["n_no_beam"] == 2 and d["min_bmaj_asec"] == 19.9 and d["min_bmin_asec"] == 14.9
+    assert abs(d["std_bmaj_asec"] - np.std([20.0, 20.1, 19.9, 20.0])) < 1e-12
+    assert d["bmaj_scatter_quality"] == "Good"  # the zeros alone would give a std of 8.5
+    assert abs(d["median_bpa_deg"] - 10.0) < 1e-12 and abs(d["axial_ratio"] - 20.0 / 15.0) < 1e-3
+
+
+def test_diagnostics_without_any_beam_are_unavailable():
+    zeros = np.zeros(5)
+    assert bm.beam_diagnostics(zeros, zeros, zeros) == {"available": False}
+    assert bm.beam_diagnostics(np.full(5, np.nan), None, None) == {"available": False}
+
+
+def test_pixels_per_beam_ignore_channels_without_a_beam():
+    from hi_cube_qa.reduction import pix_per_beam
+
+    hdr = _h(CDELT1=-6.0 / 3600, CDELT2=6.0 / 3600)
+    with_zeros = pix_per_beam(
+        hdr, np.array([0.0, 0.0, 0.0, 20.0, 20.0]), np.array([0.0, 0.0, 0.0, 15.0, 15.0])
+    )
+    clean = pix_per_beam(hdr, np.array([20.0, 20.0]), np.array([15.0, 15.0]))
+    assert with_zeros == clean and abs(clean - np.pi / (4 * np.log(2)) * 300 / 36) < 1e-9
+    assert pix_per_beam(hdr, np.zeros(3), np.zeros(3)) == pix_per_beam(hdr, None, None)

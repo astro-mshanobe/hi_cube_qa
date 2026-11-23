@@ -160,10 +160,12 @@ sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports t
   `flag_bad_pct`) are accepted but fixed values are used in the code.
 - The number of antennas read from `obsinfo` is the antenna table length, i.e. antennas
   present, not antennas that survived calibration and flagging.
-- Beam statistics include every channel whose beam keywords are finite, so channels with
-  a zero beam keyword are not excluded and enter the scatter and axial-ratio checks. In the
-  G23 cubes this applies to 103 channels in the GPS band (1379.7 to 1382.4 MHz); excluding
-  them is a planned change that will alter reported numbers.
+- Channels without a usable beam (a zero or missing beam keyword, as WSClean writes for
+  empty channels) are left out of the beam statistics, the Bad and Warn channel fractions
+  and the kurtosis summary, and counted in the `n_no_beam` column of the band summary and in
+  the notes of the checklist. They stay in the per-channel table with their raw values and
+  show as gaps in the beam plot. In the G23 cubes these are 103 channels in the GPS band
+  (1379.7 to 1382.4 MHz). A channel with a zero beam but real data is also left out.
 - The in-page refresh of the top (channel) axis assumes velocity is linear in channel
   number, as it is for a frequency axis; otherwise the top axis keeps the ticks of the full
   band when zooming.

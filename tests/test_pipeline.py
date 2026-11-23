@@ -328,3 +328,63 @@ def test_units_without_a_line_cube_are_not_assessed_for_large_scale_noise(tmp_pa
     assert residual["status"] == "N/A" and "no imsub-line.fits" in residual["note"]
     assert "Not assessed" in checks[("p01/cube_1/c1-image", "Low large-scale noise")]["note"]
     assert _band(out)["p01/cube_1/c1-residual"]["ls_status"] == ""
+
+
+def _zero_beam_channels(car):
+    """Per-channel beam keywords with a zero beam in channels 3 to 5; 3 and 4 have no data."""
+    for path in car.glob("output_hi_*/cubes/cube_*/*.fits"):
+        with fits.open(path, mode="update") as hdul:
+            header = hdul[0].header
+            for i in range(hdul[0].data.shape[0]):
+                empty = 3 <= i <= 5
+                header[f"BMAJ{i:04d}"] = 0.0 if empty else 20.0 / 3600
+                header[f"BMIN{i:04d}"] = 0.0 if empty else 15.0 / 3600
+                header[f"BPA{i:04d}"] = 0.0 if empty else 10.0
+            hdul[0].data[3:5] = np.nan
+            hdul[0].data[5, ::5, ::5] = 0.5  # data but no beam, and not Gaussian
+            hdul[0].data[8:10, ::5, ::5] = 0.5  # two strongly non-Gaussian channels
+
+
+@uses_tmp_path
+def test_channels_without_a_beam_do_not_count_against_the_cube(tmp_path):
+    out, _ = _run(tmp_path, tamper=_zero_beam_channels)
+    obsid = "1600000000_sdp_l0"
+    row = _band(out)["p01/cube_1/c1-image"]
+    assert row["n_no_beam"] == "3" and row["n_channels"] == "16"
+    assert (
+        row["pct_bad"] == "0.0" and row["overall_quality"] == "Good"
+    )  # 3 of 16 would be 18.8% Bad
+    assert row["std_bmaj_asec"] == "0.0000" and row["median_bmaj_asec"] == "20.000"
+    checks = {(r["cube_label"], r["criterion"]): r for r in _rows(out / f"{obsid}_checklist.csv")}
+    assert checks[("p01/cube_1/c1-image", "Beam stability")]["status"] == "Pass"
+    few = checks[("p01/cube_1/c1-image", "Few bad channels (< 5%)")]
+    assert few["status"] == "Pass" and "3 channel(s) without a beam" in few["note"]
+    kurt = checks[("p01/cube_1/c1-image", "Gaussian noise (kurtosis)")]["note"]
+    assert kurt.startswith(
+        "2 ch non-Gaussian w/ RMS OK, 0 ch bad on both, 0 ch RMS-bad but Gaussian"
+    )
+    assert "3 ch without a beam left out" in kurt
+    assert row["pct_bad_kurtosis"] == "15.38"  # 2 of the 13 channels that have a beam, not 2 of 16
+    channels = _rows(out / f"{obsid}_channel_qa.csv")
+    zero = [r for r in channels if r["cube_label"].endswith("c1-image") and r["channel"] == "4"][0]
+    assert float(zero["bmaj_asec"]) == 0.0  # the per-channel table keeps the raw value
+
+
+@uses_tmp_path
+def test_the_beam_plot_leaves_gaps_where_there_is_no_beam(tmp_path):
+    import logging
+
+    from hi_cube_qa.config import load_config
+    from hi_cube_qa.discovery import discover_session
+
+    car = make_session(tmp_path / "data", n_ant=N_ANT, nchan=16, ny=48, nx=48, sigma=SIGMA_JY)
+    _zero_beam_channels(car)
+    config = tmp_path / "qa.yaml"
+    config.write_text(f"sessions:\n  - root: {car}\noutput:\n  dir: {tmp_path / 'out'}\n")
+    cfg = load_config(config)
+    unit = discover_session(car, products=cfg.products).units[0]
+    bundle = qa_cli.assess_unit(unit, cfg, logging.getLogger("test"))
+    for trace in bundle["figures"]["beam"].data:
+        y = np.array(trace.y, dtype=float)
+        if len(y) == 16:
+            assert np.isnan(y[3:6]).all() and np.isfinite(np.delete(y, [3, 4, 5])).all()

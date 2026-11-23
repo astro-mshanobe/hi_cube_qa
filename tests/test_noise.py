@@ -262,3 +262,28 @@ def test_channel_summary_without_good_channels():
     assert (
         s["median_rms_mjy"] == 3000.0 and s["rms_to_theory"] is None and s["theory_rms_mjy"] is None
     )
+
+
+def test_channel_summary_leaves_out_excluded_channels():
+    quality = np.array([nz.BAD] * 10 + [nz.GOOD] * 90, dtype=object)
+    rms = np.where(quality == nz.GOOD, 1.0, np.nan)
+    plain = nz.channel_summary(rms, quality, 1.0)
+    assert plain["overall_quality"] == nz.WARN and plain["pct_bad"] == 10.0  # 10% Bad
+    left_out = nz.channel_summary(rms, quality, 1.0, exclude=quality == nz.BAD)
+    assert left_out["overall_quality"] == nz.GOOD
+    assert (left_out["n_good"], left_out["n_bad"], left_out["n_total"], left_out["n_excluded"]) == (
+        90,
+        0,
+        100,
+        10,
+    )
+    assert left_out["pct_bad"] == 0.0 and plain["n_excluded"] == 0
+
+
+def test_channel_summary_percentages_use_the_graded_channels():
+    quality = np.array([nz.BAD] * 5 + [nz.WARN] * 15 + [nz.GOOD] * 60 + [nz.BAD] * 20, dtype=object)
+    exclude = np.zeros(100, dtype=bool)
+    exclude[-20:] = True
+    s = nz.channel_summary(np.ones(100), quality, 1.0, exclude=exclude)
+    assert abs(s["pct_bad"] - 100 * 5 / 80) < 1e-12 and abs(s["pct_warn"] - 100 * 15 / 80) < 1e-12
+    assert s["overall_quality"] == nz.WARN

@@ -117,7 +117,8 @@ and where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).
   RMS/theory.
 - The default `tsys`, `eta`, SEFD curve and `nfac` table have no source here.
 - The flagged fraction is one number per pointing, not a per-channel spectrum.
-- Beam statistics include zero-beam channels (103 in the G23 GPS band).
+- Channels with a zero beam (103 in the G23 GPS band) are left out of the beam statistics and
+  the bad-channel fractions, and counted in `n_no_beam`.
 - Tested on synthetic cubes and Python 3.10; the cluster container (Python 3.12) passes the
   test suite but real cubes have not been run through the newest figures.
 

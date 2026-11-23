@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 from astropy.io import fits
 
-from .beam import beam_diagnostics, beam_stats
+from .beam import beam_diagnostics, beam_stats, valid_beam
 from .io_utils import frequency_velocity
 from .noise import kurtosis_planes, mad_rms_planes
 
@@ -54,9 +54,10 @@ def pix_per_beam(hdr, bmaj_arr, bmin_arr) -> float:
     cdelt1 = abs(hdr.get("CDELT1", 6.0 / 3600.0))
     cdelt2 = abs(hdr.get("CDELT2", 6.0 / 3600.0))
     pix_sr = np.deg2rad(cdelt1) * np.deg2rad(cdelt2)
-    if bmaj_arr is not None and np.any(np.isfinite(bmaj_arr)):
-        bmaj_deg = np.nanmedian(bmaj_arr) / 3600.0
-        bmin_deg = np.nanmedian(bmin_arr) / 3600.0
+    usable = valid_beam(bmaj_arr, bmin_arr) if bmaj_arr is not None else np.zeros(1, dtype=bool)
+    if usable.any():
+        bmaj_deg = np.median(np.asarray(bmaj_arr)[usable]) / 3600.0
+        bmin_deg = np.median(np.asarray(bmin_arr)[usable]) / 3600.0
     else:
         bmaj_deg, bmin_deg = 18.0 / 3600.0, 14.0 / 3600.0
     beam_sr = (np.pi / (4.0 * np.log(2.0))) * np.deg2rad(bmaj_deg) * np.deg2rad(bmin_deg)
