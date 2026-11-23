@@ -5,7 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from noise import running_median_rms, cumulative_rms
+from .noise import running_median_rms, cumulative_rms
 
 ##############################################################################
 #
@@ -433,7 +433,7 @@ def fig_flag_summary(flag_data) -> go.Figure | None:
     """One bar per flag report (per pointing/stage), coloured by fraction."""
     if flag_data is None:
         return None
-    from io_utils import flag_fraction_of
+    from .io_utils import flag_fraction_of
 
     labels, fracs, colours = [], [], []
     for label, content in flag_data.items():

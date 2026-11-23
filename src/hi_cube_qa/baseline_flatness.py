@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 baseline_flatness.py
 =====================
@@ -31,8 +30,8 @@ It does reuse the toolkit's own cube I/O (CubeHandle), noise estimator
 the same YAML config as the main pipeline, so it stays consistent with it.
 
 Usage:
-  python3 baseline_flatness.py --config qa_G23_all_sessions.yaml
-  python3 baseline_flatness.py --config qa_G23_all_sessions.yaml --degree 2
+  hi-cube-qa-baseline --config qa_G23_all_sessions.yaml
+  hi-cube-qa-baseline --config qa_G23_all_sessions.yaml --degree 2
 """
 from __future__ import annotations
 import argparse
@@ -44,11 +43,10 @@ import warnings
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from config import load_config
-from reduce import CubeHandle, _pix_per_beam
-from noise  import mad_rms_planes
-from beam   import beam_stats
+from .config import load_config
+from .reduce import CubeHandle, _pix_per_beam
+from .noise  import mad_rms_planes
+from .beam   import beam_stats
 
 
 def per_channel_mean_rms(h: CubeHandle, chunk: int = 64):

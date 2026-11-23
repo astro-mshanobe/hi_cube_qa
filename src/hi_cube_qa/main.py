@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 import argparse
 import re
@@ -8,25 +7,25 @@ import time
 import numpy as np
 
 #--- Local modules ---
-from config     import load_config, write_example_config, QAConfig
-from discovery  import discover_session, discover_flag_reports, summarise, Unit
-from io_utils   import load_flag_report, channel_width_hz, flag_fraction_of
-from reduce     import reduce_product
-from noise      import (theoretical_noise, theoretical_noise_spectrum,
+from .config     import load_config, write_example_config, QAConfig
+from .discovery  import discover_session, discover_flag_reports, summarise, Unit
+from .io_utils   import load_flag_report, channel_width_hz, flag_fraction_of
+from .reduce     import reduce_product
+from .noise      import (theoretical_noise, theoretical_noise_spectrum,
                         classify_channels, channel_summary, nhi_sensitivity,
                         brightness_temperature,
                         classify_kurtosis, kurtosis_expected_se)
-from provenance import read_provenance, resolve_nfac
-import wsclean_log
-from spectrum   import (
+from .provenance import read_provenance, resolve_nfac
+from . import wsclean_log
+from .spectrum   import (
         fig_rms_curve, fig_cumulative_rms, fig_rms_histogram,
         fig_rms_vs_theory, fig_noise_overview,
         fig_spectral_profile, fig_band_spectrum, fig_nhi_sensitivity,
         fig_kurtosis,
         fig_beam_stats, fig_flag_summary, fig_summary_table,
         )
-from thumbnails import build_thumbnail_html, build_map_html
-from tables     import (
+from .thumbnails import build_thumbnail_html, build_map_html
+from .tables     import (
         setup_logger,
         write_channel_csv,
         write_band_summary_csv,
@@ -34,9 +33,9 @@ from tables     import (
         build_expert_checklist,
         write_survey_summary,
         )
-from report     import (build_session_report, build_master_index,
+from .report     import (build_session_report, build_master_index,
                         export_figs_png, png_export_available)
-import spectrum
+from . import spectrum
 
 
 def _flag_fractions_by_pointing(flag_data) -> dict[str, float]:

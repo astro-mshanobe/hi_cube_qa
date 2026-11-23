@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hi_cube_qa"
+version = "0.1.0"
+description = "Quality assessment of MeerKAT HI cubes: one interactive HTML report per observation session"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = [
+    "numpy>=1.21",
+    "scipy>=1.5",
+    "astropy>=5.0",
+    "plotly>=5.0",
+    "matplotlib>=3.5",
+    "pyyaml>=5.1",
+]
+
+[project.optional-dependencies]
+png = ["kaleido"]
+test = ["pytest"]
+
+[project.scripts]
+hi-cube-qa = "hi_cube_qa.main:main"
+hi-cube-qa-baseline = "hi_cube_qa.baseline_flatness:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -5,9 +5,9 @@ from pathlib import Path
 import numpy as np
 from astropy.io import fits
 
-from io_utils import frequency_velocity, pixel_scale_asec
-from noise    import mad_rms_planes, kurtosis_planes
-from beam     import beam_stats, beam_diagnostics
+from .io_utils import frequency_velocity, pixel_scale_asec
+from .noise    import mad_rms_planes, kurtosis_planes
+from .beam     import beam_stats, beam_diagnostics
 
 ##############################################################################
 #

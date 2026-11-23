@@ -21,7 +21,7 @@
 #     HTML report is written per session into output.dir.
 #   - Memory: cubes are loaded one unit (pointing/cube_N) at a time, so peak
 #     RAM is ~ a few cubes, not the whole session. 64 GB is comfortable.
-#   - Tip: run `python3 main.py --config <cfg> --list` first to preview which
+#   - Tip: run `python3 -m hi_cube_qa --config <cfg> --list` first to preview which
 #     pointings/cubes/products will be assessed (no heavy compute).
 # ─────────────────────────────────────────────────────────────────────
 
@@ -37,7 +37,8 @@ echo "=========================================="
 
 cd ~/workspace/hi_cube_qa
 
-singularity exec ${CONTAINER} python3 main.py --config "${CONFIG}"
+export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
+singularity exec ${CONTAINER} python3 -m hi_cube_qa --config "${CONFIG}"
 
 echo ""
 echo "=========================================="

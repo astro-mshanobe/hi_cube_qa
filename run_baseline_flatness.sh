@@ -30,7 +30,8 @@ echo "=========================================="
 
 cd ~/workspace/hi_cube_qa
 
-singularity exec ${CONTAINER} python3 baseline_flatness.py --config "${CONFIG}"
+export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
+singularity exec ${CONTAINER} python3 -m hi_cube_qa.baseline_flatness --config "${CONFIG}"
 
 echo ""
 echo "=========================================="
