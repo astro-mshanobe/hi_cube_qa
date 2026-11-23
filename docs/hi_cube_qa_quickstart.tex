@@ -45,14 +45,14 @@ products: [dirty, image, residual]   # default three; or 'all'; or a subset
 
 \textbf{Step 2 --- preview what will be assessed} (fast, no heavy compute):
 \begin{lstlisting}
-python3 main.py --config qa_G23_all_sessions.yaml --list
+hi-cube-qa --config qa_G23_all_sessions.yaml --list
 \end{lstlisting}
 This prints every \code{pointing/cube\_N} unit and the products found, so you
 can confirm e.g.\ that residuals are picked up before committing to a full run.
 
 \textbf{Step 3 --- run it.} Locally:
 \begin{lstlisting}
-python3 main.py --config qa_G23_all_sessions.yaml
+hi-cube-qa --config qa_G23_all_sessions.yaml
 \end{lstlisting}
 or on the cluster (Slurm + Singularity):
 \begin{lstlisting}

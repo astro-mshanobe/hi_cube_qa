@@ -702,7 +702,7 @@ RMS check alone cannot see (Section~\ref{sec:kurtosis}).\\
 \section{Configuration reference}\label{sec:config}
 % ===========================================================================
 A run is driven by a single YAML file. The toolkit ships a fully commented
-template, regenerated with \code{python3 main.py -{}-example-config}. A
+template, regenerated with \code{hi-cube-qa -{}-example-config}. A
 representative configuration:
 
 \begin{lstlisting}
@@ -839,12 +839,12 @@ Written into \code{output.dir}:
 \paragraph{Preview (no heavy compute).} List exactly which units and products
 will be assessed:
 \begin{lstlisting}
-python3 main.py --config qa_G23_all_sessions.yaml --list
+hi-cube-qa --config qa_G23_all_sessions.yaml --list
 \end{lstlisting}
 \paragraph{Full run, locally.}
 \begin{lstlisting}
-python3 main.py --config qa_G23_all_sessions.yaml
-python3 main.py --config qa_G23_all_sessions.yaml --full-res   # every channel
+hi-cube-qa --config qa_G23_all_sessions.yaml
+hi-cube-qa --config qa_G23_all_sessions.yaml --full-res   # every channel
 \end{lstlisting}
 \paragraph{On the cluster (Slurm + Singularity).}
 \begin{lstlisting}
