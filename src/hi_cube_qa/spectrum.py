@@ -35,8 +35,10 @@ PLOTLY_TEMPLATE = go.layout.Template(
             paper_bgcolor=COL_BG,
             plot_bgcolor=COL_BG,
             font=dict(color=COL_TEXT, family="Inter, Arial, sans-serif", size=12),
-            xaxis=dict(gridcolor=COL_GRID, zerolinecolor=COL_GRID, linecolor=COL_GRID),
-            yaxis=dict(gridcolor=COL_GRID, zerolinecolor=COL_GRID, linecolor=COL_GRID),
+            xaxis=dict(gridcolor=COL_GRID, zerolinecolor=COL_GRID, linecolor=COL_GRID,
+                       ticks="outside", ticklen=6, tickcolor=COL_GRID),
+            yaxis=dict(gridcolor=COL_GRID, zerolinecolor=COL_GRID, linecolor=COL_GRID,
+                       ticks="outside", ticklen=6, tickcolor=COL_GRID),
             legend=dict(bgcolor="rgba(30,33,43,0.85)", bordercolor=COL_GRID, borderwidth=1),
             hoverlabel=dict(bgcolor="#1E212B", font_color=COL_TEXT),
             )
@@ -85,8 +87,11 @@ VEL_AXIS_TITLE = "Radio velocity (km/s)"
 CHAN_AXIS_TITLE = "Channel index"
 HOVER_CH = "Ch %{customdata} | v = %{x:.1f} km/s"
 _TOP_TICKS = 8
-_TOP_AXIS_PX = 45          # tick labels and title of the channel axis
-_TOP_MARGIN_PX = 65        # the same, plus a second legend row
+LEGEND_SIDE = dict(orientation="v", x=1.02, xanchor="left", y=1.0, yanchor="top")
+_MARGIN_R = 200
+_TOP_AXIS_PX = 68          # tick labels and title of a top axis
+_TITLE_PX = 35             # figure title
+_SUBTITLE_PX = 22          # subplot title above the first panel
 
 
 def _xy(vel_kms, chans, mask) -> dict:
@@ -114,38 +119,50 @@ def channel_ticks(nchan: int, lo: float = 0.0, hi: float | None = None) -> np.nd
     return np.arange(int(np.ceil(lo / step)) * step, hi + 1, step)
 
 
+def add_top_axis(fig: go.Figure, n_xaxes: int, title: str, tickvals, ticktext, x_span) -> int:
+    """
+    Add a second x axis along the top of the first panel, tied to the main x axis
+    (same range) but labelled with *ticktext* at the positions *tickvals*. *n_xaxes* is
+    the number of x axes the figure already has (rows of a shared-x subplot grid).
+    Room is made above the panel and the first panel's subplot title, if any, is moved
+    above the new axis. Returns the number of the new axis.
+    """
+    name = n_xaxes + 1
+    fig.update_layout({f"xaxis{name}": dict(
+            title=title, overlaying="x", side="top", matches="x", anchor="y",
+            tickmode="array", tickvals=list(tickvals), ticktext=list(ticktext), tickangle=0,
+            showgrid=False, zeroline=False)})
+    fig.add_trace(go.Scatter(x=[float(x_span[0]), float(x_span[1])], y=[None, None], xaxis=f"x{name}",
+                             yaxis="y", mode="markers", marker=dict(opacity=0), showlegend=False,
+                             hoverinfo="skip", name="top axis"))
+    first_top = fig.layout.yaxis.domain[1] if fig.layout.yaxis.domain else 1.0
+    titled = [a for a in fig.layout.annotations
+              if a.xref == "paper" and a.yref == "paper" and abs(a.y - first_top) < 1e-6]
+    for annotation in titled:
+        annotation.yshift = _TOP_AXIS_PX
+    top = _TITLE_PX + _TOP_AXIS_PX + (_SUBTITLE_PX if titled else 0) + 10
+    height = fig.layout.height or 450
+    fig.update_layout(margin=dict(t=top), height=height - (fig.layout.margin.t or 80) + top,
+                      title=dict(y=1.0, yref="container", yanchor="top", pad=dict(t=8)))
+    return name
+
+
 def add_channel_axis(fig: go.Figure, vel_kms, n_xaxes: int = 1) -> None:
     """
     Label the velocity axis from below with VEL_AXIS_TITLE and add a channel-index
     axis along the top of the first panel. The channel axis is tied to the velocity
-    axis (same range), carries ticks at round channel numbers, and is refreshed on
-    zoom by the script in report.py (it reads the figure's meta, which is only set
-    when velocity is linear in channel number).
+    axis, carries ticks at round channel numbers, and is refreshed on zoom by the
+    script in report.py (it reads the figure's meta, which is only set when velocity
+    is linear in channel number).
 
-    *n_xaxes* is the number of x axes the figure already has (rows of a shared-x
-    subplot grid); the velocity title goes on the last one.
+    *n_xaxes* is the number of x axes the figure already has; the velocity title goes
+    on the last one.
     """
     vel = np.asarray(vel_kms, dtype=float)
     nchan = len(vel)
     ticks = channel_ticks(nchan)
-    name = n_xaxes + 1
-    fig.update_layout({
-            f"xaxis{n_xaxes if n_xaxes > 1 else ''}": dict(title=VEL_AXIS_TITLE),
-            f"xaxis{name}": dict(
-                title=CHAN_AXIS_TITLE, overlaying="x", side="top", matches="x", anchor="y",
-                tickmode="array", tickvals=vel[ticks].tolist(), ticktext=[str(c) for c in ticks],
-                showgrid=False, zeroline=False),
-            })
-    fig.add_trace(go.Scatter(x=[float(vel[0]), float(vel[-1])], y=[None, None], xaxis=f"x{name}", yaxis="y",
-                             mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip",
-                             name="channel axis"))
-    # room above the panel for the channel labels, with the legend moved clear of them
-    margin = fig.layout.margin
-    top, bottom, height = margin.t or 80, margin.b or 60, fig.layout.height or 450
-    fig.update_layout(margin=dict(t=top + _TOP_MARGIN_PX),
-                      height=height + _TOP_MARGIN_PX,
-                      title=dict(y=1.0, yref="container", yanchor="top", pad=dict(t=8)),
-                      legend=dict(y=1.0 + (_TOP_AXIS_PX + 8) / (height - top - bottom)))
+    fig.update_layout({f"xaxis{n_xaxes if n_xaxes > 1 else ''}": dict(title=VEL_AXIS_TITLE)})
+    name = add_top_axis(fig, n_xaxes, CHAN_AXIS_TITLE, vel[ticks], [str(c) for c in ticks], (vel[0], vel[-1]))
     step = float(vel[-1] - vel[0]) / (nchan - 1) if nchan > 1 else 1.0
     if nchan > 1 and np.allclose(vel, vel[0] + step * np.arange(nchan), rtol=0, atol=1e-3 * abs(step)):
         # the in-page refresh assumes velocity is linear in channel number
@@ -205,8 +222,8 @@ def fig_rms_curve(freq_hz, vel_kms, rms_dict, theory=None) -> go.Figure:
             template=PLOTLY_TEMPLATE,
             title=dict(text="Per-channel RMS noise (colour = quality class)", font=dict(size=15)),
             yaxis=dict(title="RMS noise (mJy/beam)"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=440, margin=dict(l=65, r=30, t=80, b=60))
+            legend=LEGEND_SIDE,
+            height=440, margin=dict(l=65, r=_MARGIN_R, t=80, b=60))
     add_channel_axis(fig, vel_kms)
     return fig
 
@@ -229,8 +246,8 @@ def fig_cumulative_rms(freq_hz, vel_kms, rms_dict, theory=None) -> go.Figure:
             template=PLOTLY_TEMPLATE,
             title=dict(text="Cumulative median RMS (noise-floor convergence)", font=dict(size=15)),
             yaxis=dict(title="Cumulative median RMS (mJy/beam)"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=380, margin=dict(l=65, r=30, t=80, b=60))
+            legend=LEGEND_SIDE,
+            height=380, margin=dict(l=65, r=_MARGIN_R, t=80, b=60))
     add_channel_axis(fig, vel_kms)
     return fig
 
@@ -240,17 +257,15 @@ def fig_rms_histogram(rms_dict) -> go.Figure:
     for label, (rms, col, _q) in rms_dict.items():
         med = np.nanmedian(rms)
         clean = rms[(rms < 5 * med) & np.isfinite(rms)]
-        fig.add_trace(go.Histogram(x=clean * 1e3, nbinsx=40, name=label,
+        fig.add_trace(go.Histogram(x=clean * 1e3, nbinsx=40, name=f"{label} (median {med * 1e3:.3f})",
                                    marker_color=col, opacity=0.72))
-        fig.add_vline(x=med * 1e3, line=dict(color=col, dash="dash", width=1.5),
-                      annotation_text=f"Median {label}: {med*1e3:.3f}",
-                      annotation_font_color=col)
+        fig.add_vline(x=med * 1e3, line=dict(color=col, dash="dash", width=1.5))
     fig.update_layout(
             template=PLOTLY_TEMPLATE, barmode="overlay",
-            title=dict(text="RMS noise distribution", font=dict(size=15)),
+            title=dict(text="RMS noise distribution (dashed = median)", font=dict(size=15)),
             xaxis=dict(title="RMS noise (mJy/beam)"), yaxis=dict(title="Number of channels"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=380, margin=dict(l=60, r=30, t=80, b=60))
+            legend=LEGEND_SIDE,
+            height=380, margin=dict(l=60, r=_MARGIN_R, t=80, b=60))
     return fig
 
 
@@ -282,8 +297,8 @@ def fig_rms_vs_theory(freq_hz, vel_kms, rms_dict, theory) -> go.Figure:
             template=PLOTLY_TEMPLATE,
             title=dict(text="Per-channel RMS / theoretical noise", font=dict(size=15)),
             yaxis=dict(title="RMS / theory", type="log"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=400, margin=dict(l=70, r=30, t=80, b=60))
+            legend=LEGEND_SIDE,
+            height=400, margin=dict(l=70, r=_MARGIN_R, t=80, b=60))
     add_channel_axis(fig, vel_kms)
     return fig
 
@@ -329,8 +344,8 @@ def fig_noise_overview(freq_hz, vel_kms, noise_ref, theory_flat, theory_flag,
     fig.update_layout(
             template=PLOTLY_TEMPLATE, hovermode="x unified", height=600,
             title=dict(text=title, font=dict(size=15)),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=70, r=30, t=100, b=60))
+            legend=LEGEND_SIDE,
+            margin=dict(l=70, r=_MARGIN_R, t=100, b=60))
     add_channel_axis(fig, vel_kms, n_xaxes=2)
     return fig
 
@@ -354,8 +369,8 @@ def fig_spectral_profile(freq_hz, vel_kms, prof_dict) -> go.Figure:
             template=PLOTLY_TEMPLATE, title=dict(text="Spectral profile", font=dict(size=15)),
             height=480,
             yaxis=dict(title="Peak (mJy/beam)"), yaxis2=dict(title="Mean (uJy/beam)"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=65, r=30, t=100, b=60))
+            legend=LEGEND_SIDE,
+            margin=dict(l=65, r=_MARGIN_R, t=100, b=60))
     add_channel_axis(fig, vel_kms, n_xaxes=2)
     return fig
 
@@ -372,7 +387,7 @@ def fig_band_spectrum(freq_hz, vel_kms, spec_dict, z_source=None) -> go.Figure:
     vel_min, vel_max = float(np.nanmin(vel_kms)), float(np.nanmax(vel_kms))
     freq_lo = HI_REST_FREQ_HZ * (1.0 - vel_max / C_KMS)
     freq_hi = HI_REST_FREQ_HZ * (1.0 - vel_min / C_KMS)
-    freq_ticks = np.linspace(freq_lo, freq_hi, 9)
+    freq_ticks = np.linspace(freq_lo, freq_hi, 5)
     vel_at = C_KMS * (HI_REST_FREQ_HZ - freq_ticks) / HI_REST_FREQ_HZ
 
     km = _keep_mask(len(vel_kms))
@@ -416,16 +431,12 @@ def fig_band_spectrum(freq_hz, vel_kms, spec_dict, z_source=None) -> go.Figure:
             template=PLOTLY_TEMPLATE, height=660,
             title=dict(text="Full-band HI spectrum - integrated & peak flux", font=dict(size=15)),
             xaxis=dict(tickvals=vel_at.tolist(), ticktext=[f"{v:.0f}" for v in vel_at]),
-            xaxis2=dict(title="Radio velocity v_radio (km/s)", tickvals=vel_at.tolist(),
+            xaxis2=dict(title=VEL_AXIS_TITLE, tickvals=vel_at.tolist(),
                         ticktext=[f"{v:.0f}" for v in vel_at]),
             yaxis=dict(title="S_int (mJy)"), yaxis2=dict(title="S_peak (mJy/beam)"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, tracegroupgap=8),
-            margin=dict(l=75, r=30, t=120, b=70))
-    for v_pos, f_hz in zip(vel_at, freq_ticks):
-        fig.add_annotation(x=v_pos, y=1.06, xref="x", yref="paper", text=f"{f_hz/1e6:.1f}",
-                           showarrow=False, font=dict(size=10, color="#aaaaaa"), xanchor="center")
-    fig.add_annotation(x=0.5, y=1.11, xref="paper", yref="paper", text="Frequency (MHz)",
-                       showarrow=False, font=dict(size=12, color="#aaaaaa"), xanchor="center")
+            legend=dict(LEGEND_SIDE, tracegroupgap=8),
+            margin=dict(l=75, r=_MARGIN_R, t=120, b=70))
+    add_top_axis(fig, 2, "Frequency (MHz)", vel_at, [f"{f / 1e6:.1f}" for f in freq_ticks], (vel_min, vel_max))
     return fig
 
 
@@ -440,10 +451,10 @@ def fig_nhi_sensitivity(freq_hz, vel_kms, nhi_dict, dv_kms=20.0) -> go.Figure:
                                  hovertemplate=HOVER_CH + "<br>3sig N_HI = %{y:.2e} cm^-2<extra></extra>"))
     fig.update_layout(
             template=PLOTLY_TEMPLATE,
-            title=dict(text=f"3&sigma; HI column-density sensitivity (per channel)", font=dict(size=15)),
+            title=dict(text=f"3σ HI column-density sensitivity (per channel)", font=dict(size=15)),
             yaxis=dict(title="N_HI (atoms cm^-2)", type="log"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=360, margin=dict(l=80, r=30, t=80, b=60))
+            legend=LEGEND_SIDE,
+            height=360, margin=dict(l=80, r=_MARGIN_R, t=80, b=60))
     add_channel_axis(fig, vel_kms)
     return fig
 
@@ -473,11 +484,11 @@ def fig_kurtosis(freq_hz, vel_kms, kurt_dict) -> go.Figure:
                   annotation_text="Gaussian expectation = 3", annotation_font_color=COL_THEORY)
     fig.update_layout(
             template=PLOTLY_TEMPLATE,
-            title=dict(text="Non-Gaussianity: per-channel kurtosis (shaded = expected sampling scatter)",
+            title=dict(text="Per-channel kurtosis (shaded: ±5 standard errors)",
                       font=dict(size=15)),
             yaxis=dict(title="Pearson kurtosis"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=360, margin=dict(l=70, r=30, t=80, b=60))
+            legend=LEGEND_SIDE,
+            height=360, margin=dict(l=70, r=_MARGIN_R, t=80, b=60))
     add_channel_axis(fig, vel_kms)
     return fig
 
@@ -503,8 +514,8 @@ def fig_beam_stats(freq_hz, vel_kms, beam_dict) -> go.Figure:
             template=PLOTLY_TEMPLATE, title=dict(text="Synthesised beam parameters", font=dict(size=15)),
             height=500, yaxis=dict(title="Beam axis (arcsec)"),
             yaxis2=dict(title="BPA (deg)"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=65, r=30, t=100, b=60))
+            legend=LEGEND_SIDE,
+            margin=dict(l=65, r=_MARGIN_R, t=100, b=60))
     add_channel_axis(fig, vel_kms, n_xaxes=2)
     return fig
 
@@ -541,7 +552,7 @@ def fig_flag_summary(flag_data) -> go.Figure | None:
     fig.update_layout(
             template=PLOTLY_TEMPLATE, title=dict(text="Flagging fraction summary", font=dict(size=15)),
             xaxis=dict(title="Flagged data (%)"), height=max(300, 50 * len(labels) + 120),
-            margin=dict(l=200, r=30, t=80, b=60))
+            margin=dict(l=200, r=_MARGIN_R, t=80, b=60))
     return fig
 
 
@@ -562,7 +573,7 @@ def fig_summary_table(noise_summaries, beam_diagnostics, theory, nchan,
                 rows_s.append("Good" if ratio < 1.5 else "Warn" if ratio < 3.0 else "Bad")
         nh = nhi_summaries.get(label)
         if nh is not None and np.isfinite(nh.get("nhi_dv_cm2", np.nan)):
-            rows_h.append(f"{label}: 3&sigma; N_HI ({nh['dv_kms']:.0f} km/s)")
+            rows_h.append(f"{label}: 3σ N_HI ({nh['dv_kms']:.0f} km/s)")
             rows_v.append(f"{nh['nhi_dv_cm2']:.2e} cm^-2"); rows_s.append("-")
         rows_h.append(f"{label}: Good / Warn / Bad"); rows_v.append(f"{ns['n_good']} / {ns['n_warn']} / {ns['n_bad']} of {ns['n_total']}")
         rows_s.append("Good" if ns["pct_bad"] < 5 else "Warn" if ns["pct_bad"] < 15 else "Bad")

@@ -130,6 +130,12 @@ The full-band spectrum keeps its own pair of axes, radio velocity along the bott
 frequency in MHz along the top. The channel maps are titled with the channel index, the
 frequency and the velocity.
 
+Legends stand to the right of each plot and the title, top axis and subplot titles each have
+their own band, so that text does not overlap. This was checked in a browser at viewport
+widths of 700, 760, 820, 1024 and 1400 px with a script that compares the bounding boxes of all
+text in the Plotly figures; below about 700 px the plot area becomes too narrow for the tick
+labels of the full-band spectrum, and the summary table's columns are clipped.
+
 PNG exports (`output.save_png`) are static: their top axis shows the ticks of the full band.
 The CSV tables list both channel and velocity.
 

@@ -32,7 +32,7 @@ def _figures(vel=VEL):
 
 
 def _data_traces(fig):
-    return [t for t in fig.data if t.name != "channel axis"]
+    return [t for t in fig.data if t.name != "top axis"]
 
 
 def test_channel_ticks_are_round_numbers_within_the_requested_range():
@@ -65,8 +65,9 @@ def test_the_bottom_axis_is_velocity_and_the_top_axis_lists_channels_at_their_ve
         chans = [int(t) for t in top.ticktext]
         assert chans == list(sp.channel_ticks(N)), name
         assert np.allclose(top.tickvals, VEL[chans]), name
-        axis_trace = [t for t in fig.data if t.name == "channel axis"]
+        axis_trace = [t for t in fig.data if t.name == "top axis"]
         assert len(axis_trace) == 1 and axis_trace[0].xaxis == f"x{n_x + 1}" and axis_trace[0].yaxis == "y", name
+        assert list(axis_trace[0].x) == [VEL[0], VEL[-1]] and top.tickangle == 0, name     # horizontal labels: rotated ones grow into the title
 
 
 def test_decimated_traces_keep_matching_velocity_and_channel_pairs():
@@ -95,10 +96,10 @@ def test_the_refresh_metadata_describes_a_linear_velocity_axis_and_is_omitted_ot
     assert np.allclose(fig.layout.xaxis2.tickvals, curved[[int(t) for t in fig.layout.xaxis2.ticktext]])
 
 
-def test_the_full_band_spectrum_keeps_its_own_velocity_and_frequency_axes():
+def test_the_full_band_spectrum_has_no_channel_axis_and_no_refresh_script_metadata():
     spec = {"A": {"s_int": np.zeros(N), "peak": np.zeros(N), "rms": np.zeros(N), "sigma_int": 1e-3, "colour": "#2E75B6"}}
     fig = sp.fig_band_spectrum(FREQ, VEL, spec)
-    assert not [t for t in fig.data if t.name == "channel axis"] and fig.layout.meta is None
+    assert fig.layout.xaxis3.title.text != sp.CHAN_AXIS_TITLE and fig.layout.meta is None
 
 
 def test_the_html_renderer_attaches_the_script_that_relabels_the_channel_axis_on_zoom():
@@ -107,8 +108,49 @@ def test_the_html_renderer_attaches_the_script_that_relabels_the_channel_axis_on
     assert "plotly_relayout" in html and "getElementById('fig_x')" in html and "chan_axes" in html
 
 
-def test_the_legend_sits_above_the_channel_labels_and_the_margin_makes_room_for_them():
-    fig = sp.fig_kurtosis(FREQ, VEL, {"A": {"kurtosis": np.full(N, 3.0), "se": 0.1, "colour": "#2E75B6"}})
-    plot_height = fig.layout.height - fig.layout.margin.t - fig.layout.margin.b
-    assert (fig.layout.legend.y - 1.0) * plot_height >= sp._TOP_AXIS_PX
-    assert fig.layout.margin.t >= 80 + sp._TOP_AXIS_PX and fig.layout.title.yref == "container"
+def test_legends_stand_to_the_right_of_the_plot_and_the_top_margin_holds_title_and_top_axis():
+    for name, (fig, _) in _figures().items():
+        assert fig.layout.legend.orientation == "v" and fig.layout.legend.x > 1.0 and fig.layout.legend.xanchor == "left", name
+        assert fig.layout.margin.r >= 200, name
+        assert fig.layout.margin.t >= sp._TITLE_PX + sp._TOP_AXIS_PX and fig.layout.title.yref == "container", name
+
+
+def test_the_subplot_title_of_the_first_panel_is_moved_above_the_top_axis():
+    for name in ("noise_overview", "spectral", "beam"):
+        fig = _figures()[name][0]
+        first_top = fig.layout.yaxis.domain[1]
+        titles = [a for a in fig.layout.annotations if a.yref == "paper" and abs(a.y - first_top) < 1e-6]
+        assert len(titles) == (0 if name == "noise_overview" else 1), name
+        assert all(a.yshift == sp._TOP_AXIS_PX for a in titles), name
+        others = [a for a in fig.layout.annotations if a not in titles]
+        assert all(not a.yshift for a in others), name
+
+
+def test_the_full_band_spectrum_has_a_frequency_axis_on_top_and_no_loose_labels():
+    spec = {"A": {"s_int": np.zeros(N), "peak": np.zeros(N), "rms": np.zeros(N), "sigma_int": 1e-3, "colour": "#2E75B6"}}
+    fig = sp.fig_band_spectrum(FREQ, VEL, spec)
+    top = fig.layout.xaxis3
+    assert top.title.text == "Frequency (MHz)" and top.side == "top" and top.matches == "x" and len(top.ticktext) == 5
+    freq_at = sp.HI_REST_FREQ_HZ * (1.0 - np.asarray(top.tickvals) / sp.C_KMS)
+    assert np.allclose([float(t) for t in top.ticktext], freq_at / 1e6, atol=0.051)
+    assert not [a for a in fig.layout.annotations if a.text == "Frequency (MHz)" or (a.yref == "paper" and a.y > 1.0)]
+    assert fig.layout.xaxis2.title.text == sp.VEL_AXIS_TITLE
+
+
+def test_the_histogram_names_the_medians_in_the_legend_instead_of_labelling_the_plot():
+    rms = {"A": (np.full(N, 1e-3) + 1e-5 * CHAN, "#2E75B6", np.array(["Good"] * N, dtype=object)),
+           "B": (np.full(N, 1.01e-3) + 1e-5 * CHAN, "#E04B3A", np.array(["Good"] * N, dtype=object))}
+    fig = sp.fig_rms_histogram(rms)
+    assert [t.name for t in fig.data] == ["A (median 1.195)", "B (median 1.205)"]
+    assert not fig.layout.annotations and len(fig.layout.shapes) == 2
+
+
+def test_no_title_contains_a_html_entity_that_plotly_would_print_literally():
+    for name, (fig, _) in _figures().items():
+        assert "&" not in fig.layout.title.text, name
+    assert "σ" in sp.fig_nhi_sensitivity(FREQ, VEL, {"A": {"nhi_chan": np.ones(N), "colour": "#2E75B6"}}).layout.title.text
+
+
+def test_tick_labels_stand_clear_of_the_axis_so_that_the_first_x_and_y_labels_do_not_meet_at_the_corner():
+    for axis in (sp.PLOTLY_TEMPLATE.layout.xaxis, sp.PLOTLY_TEMPLATE.layout.yaxis):
+        assert axis.ticks == "outside" and axis.ticklen >= 6
