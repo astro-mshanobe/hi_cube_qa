@@ -1,5 +1,4 @@
 # hi_cube_qa - example session configuration
-# ------------------------------------------
 # One HTML report is produced per session. Cubes are auto-discovered under each
 # session root; you only choose which products to plot.
 

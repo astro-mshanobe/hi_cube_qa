@@ -1,11 +1,12 @@
 """config: defaults, merging, validation and the example file."""
+
 import re
 from pathlib import Path
 
 import yaml
+from helpers import raises, uses_tmp_path
 
 from hi_cube_qa import config as cf
-from helpers import raises, uses_tmp_path
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -23,7 +24,9 @@ def _cfg(tmp_path, extra=""):
 @uses_tmp_path
 def test_load_config_merges_the_user_file_over_the_defaults(tmp_path):
     c = _cfg(tmp_path, "radiometer:\n  tsys: 30.0\nproducts: [image]\npointings: [p1]\n")
-    assert c.radiometer["tsys"] == 30.0 and c.radiometer["eta"] == 0.80               # nested merge keeps the other keys
+    assert (
+        c.radiometer["tsys"] == 30.0 and c.radiometer["eta"] == 0.80
+    )  # nested merge keeps the other keys
     assert c.products == ["image"] and c.pointings == ["p1"] and c.cubes is None
     assert c.thresholds["kurtosis_bad_sigma"] == 10.0 and c.plots["max_points"] == 2000
     assert repr(c) == "QAConfig(sessions=1, products=['image'])"
@@ -105,7 +108,16 @@ def test_the_example_file_parses_and_loads_once_its_session_roots_exist(tmp_path
 @uses_tmp_path
 def test_the_example_file_agrees_with_the_defaults_for_every_setting_it_names(tmp_path):
     user = yaml.safe_load(_example(tmp_path).read_text())
-    for section in ("output", "plots", "thresholds", "boresight", "reduce", "sensitivity", "continuum", "thumbnails"):
+    for section in (
+        "output",
+        "plots",
+        "thresholds",
+        "boresight",
+        "reduce",
+        "sensitivity",
+        "continuum",
+        "thumbnails",
+    ):
         for key, val in user[section].items():
             assert cf.DEFAULTS[section][key] == val, f"{section}.{key}"
     for key in ("products", "pointings", "cubes", "flagreport_glob"):

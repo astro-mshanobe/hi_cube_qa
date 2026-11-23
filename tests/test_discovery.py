@@ -1,9 +1,10 @@
 """discovery: walking a CARACal session tree into pointing / cube units, with filters, plus flag-report discovery."""
+
 from pathlib import Path
 
+from helpers import raises, uses_tmp_path
 
 from hi_cube_qa import discovery as dc
-from helpers import raises, uses_tmp_path
 
 
 def _touch(root, *parts):
@@ -15,18 +16,26 @@ def _touch(root, *parts):
 
 def _tree(tmp_path):
     car = tmp_path / "1600000000_sdp_l0" / "caracal"
-    for ptg, cube, prods in (("p13", "cube_1", ("image", "residual")), ("p7", "cube_1", ("dirty", "image")),
-                             ("p13b", "cube_2", ("image",)), ("p7", "cube_2", ("psf", "model", "image"))):
+    for ptg, cube, prods in (
+        ("p13", "cube_1", ("image", "residual")),
+        ("p7", "cube_1", ("dirty", "image")),
+        ("p13b", "cube_2", ("image",)),
+        ("p7", "cube_2", ("psf", "model", "image")),
+    ):
         for prod in prods:
             _touch(car, f"output_hi_{ptg}", "cubes", cube, f"G23_x_{ptg}_HI.{prod}.fits")
     _touch(car, "output_hi_1gc", "diagnostic_plots", "a-flagging-summary-0.json")
-    _touch(car, "output_hi_p7", "cubes", "cube_1", "G23_x_p7_HI-0001-image.fits")           # channel image, no product token
+    _touch(
+        car, "output_hi_p7", "cubes", "cube_1", "G23_x_p7_HI-0001-image.fits"
+    )  # channel image, no product token
     _touch(car, "output_hi_p7", "cubes", "cube_1", "notes.txt")
     return car
 
 
 @uses_tmp_path
-def test_units_are_sorted_by_numeric_pointing_then_cube_and_the_obsid_comes_from_the_parent_folder(tmp_path):
+def test_units_are_sorted_by_numeric_pointing_then_cube_and_the_obsid_comes_from_the_parent_folder(
+    tmp_path,
+):
     s = dc.discover_session(_tree(tmp_path))
     assert s.obsid == "1600000000_sdp_l0"
     assert [u.key for u in s.units] == ["p7/cube_1", "p7/cube_2", "p13/cube_1", "p13b/cube_2"]
@@ -75,6 +84,7 @@ def test_norm_cube_reduces_every_spelling_to_the_bare_suffix():
 
 def test_parse_product_takes_the_last_alphabetic_token_before_fits():
     from pathlib import PurePath
+
     assert dc._parse_product(PurePath("G23_a_HI_1.residual.fits")) == "residual"
     assert dc._parse_product(PurePath("G23_a_HI.Image.fits")) == "image"
     assert dc._parse_product(PurePath("G23_a_HI-0001-image.fits")) is None
@@ -99,11 +109,15 @@ def test_flag_reports_use_the_configured_glob_first_then_progressively_broader_f
     car = tmp_path / "caracal"
     hit = _touch(car, "output_hi_1gc", "diagnostic_plots", "s-flagging-summary-0.json")
     _touch(car, "output_hi_1gc", "diagnostic_plots", "s-crosscal-summary-0.json")
-    paths, pat = dc.discover_flag_reports(car, "output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json")
+    paths, pat = dc.discover_flag_reports(
+        car, "output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json"
+    )
     assert paths == [hit] and pat.startswith("output_hi_1gc")
     paths, pat = dc.discover_flag_reports(car, "no/such/*.json")
     assert paths == [hit] and pat != "no/such/*.json"
-    paths, pat = dc.discover_flag_reports(car, ["a/*.json", "output_hi_1gc/**/*flagging-summary-*.json"])
+    paths, pat = dc.discover_flag_reports(
+        car, ["a/*.json", "output_hi_1gc/**/*flagging-summary-*.json"]
+    )
     assert paths == [hit]
 
 

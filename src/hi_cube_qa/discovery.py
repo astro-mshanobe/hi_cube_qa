@@ -1,41 +1,39 @@
+"""Walk a CARACal session tree and group cubes for QA.
+
+Directory layout produced by the CARACal HI worker:
+
+   <session>_sdp_l0/caracal/
+       output_hi_<pXX>/                 <- one imaging run per pointing
+           cubes/
+               cube_1/  G23_<obsid>_<pXX>_HI_1.<product>.fits
+               cube_2/  G23_<obsid>_<pXX>_HI.<product>.fits
+       output_hi_1gc/diagnostic_plots/  <- flagging-summary JSONs
+
+<product> is one of: dirty, image, residual, model, psf, ...
+
+A QA "unit" is one (pointing, cube_N) pair. All <product> FITS inside the
+same cube_N share the spatial WCS *and* channel grid, so they can be safely
+overlaid on the same axes. Different cube_N (different spectral windows) are
+kept as separate units.
+"""
+
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-##############################################################################
-#
-#  discovery.py: walk a CARACal session tree and group cubes for QA.
-#
-#  Directory layout produced by the CARACal HI worker:
-#
-#     <session>_sdp_l0/caracal/
-#         output_hi_<pXX>/                 <- one imaging run per pointing
-#             cubes/
-#                 cube_1/  G23_<obsid>_<pXX>_HI_1.<product>.fits
-#                 cube_2/  G23_<obsid>_<pXX>_HI.<product>.fits
-#         output_hi_1gc/diagnostic_plots/  <- flagging-summary JSONs
-#
-#  <product> is one of: dirty, image, residual, model, psf, ...
-#
-#  A QA "unit" is one (pointing, cube_N) pair. All <product> FITS inside the
-#  same cube_N share the spatial WCS *and* channel grid, so they can be safely
-#  overlaid on the same axes. Different cube_N (different spectral windows) are
-#  kept as separate units.
-#
-##############################################################################
 # Products we know how to plot; used as the default selection and to order the
 # legend. Anything else discovered (e.g. "psf") is still available via
 # products: all.
 KNOWN_PRODUCTS = ("dirty", "image", "residual", "model", "psf")
 
 _POINTING_RE = re.compile(r"^output_hi_(p\d+[a-z0-9_]*)$")
-_CUBE_RE     = re.compile(r"^cube_(\w+)$")
+_CUBE_RE = re.compile(r"^cube_(\w+)$")
 
 
 def _norm_cube(s) -> str:
-    """
-    Normalise a cube identifier to its bare suffix so that 'cube_1', 'c1' and
+    """Normalise a cube identifier to its bare suffix so that 'cube_1', 'c1' and
     '1' all compare equal (used for the optional cube filter).
     """
     s = str(s).strip().lower()
@@ -51,19 +49,21 @@ def _norm_cube(s) -> str:
 @dataclass
 class CubeProduct:
     """A single <product>.fits file inside one cube_N directory."""
-    path:     Path
-    product:  str        # 'dirty' | 'image' | 'residual' | ...
-    pointing: str        # 'p63'
-    cube_id:  str        # 'cube_1'
-    label:    str        # 'c1-image'  (used in plots / legends)
+
+    path: Path
+    product: str  # 'dirty' | 'image' | 'residual' | ...
+    pointing: str  # 'p63'
+    cube_id: str  # 'cube_1'
+    label: str  # 'c1-image'  (used in plots / legends)
 
 
 @dataclass
 class Unit:
     """One (pointing, cube_N) pair: products that share a WCS + channel grid."""
-    pointing:  str                 # 'p63'
-    cube_id:   str                 # 'cube_1'
-    products:  list[CubeProduct] = field(default_factory=list)
+
+    pointing: str  # 'p63'
+    cube_id: str  # 'cube_1'
+    products: list[CubeProduct] = field(default_factory=list)
 
     @property
     def key(self) -> str:
@@ -79,9 +79,10 @@ class Unit:
 @dataclass
 class Session:
     """One observation session (one caracal/ root)."""
-    obsid:   str               # '1610268336_sdp_l0'
-    root:    Path
-    units:   list[Unit] = field(default_factory=list)
+
+    obsid: str  # '1610268336_sdp_l0'
+    root: Path
+    units: list[Unit] = field(default_factory=list)
 
     @property
     def pointings(self) -> list[str]:
@@ -96,8 +97,7 @@ class Session:
 
 
 def _parse_product(fits_path: Path) -> str | None:
-    """
-    Extract the imaging product from a cube filename.
+    """Extract the imaging product from a cube filename.
 
         G23_..._HI.image.fits      -> 'image'
         G23_..._HI_1.residual.fits -> 'residual'
@@ -109,7 +109,7 @@ def _parse_product(fits_path: Path) -> str | None:
     name = fits_path.name
     if not name.endswith(".fits"):
         return None
-    stem = name[:-len(".fits")]
+    stem = name[: -len(".fits")]
     token = stem.rsplit(".", 1)[-1].lower()
     # product tokens are alphabetic words; reject pure numbers / channel ids
     if token.isalpha():
@@ -126,13 +126,12 @@ def _pointing_sort_key(pointing: str) -> tuple:
 
 
 def discover_session(
-        root:      str | Path,
-        products:  list[str] | str = "all",
-        pointings: list[str] | None = None,
-        cubes:     list | str | None = None,
-        ) -> Session:
-    """
-    Discover QA units under a single CARACal session root.
+    root: str | Path,
+    products: list[str] | str = "all",
+    pointings: list[str] | None = None,
+    cubes: list | str | None = None,
+) -> Session:
+    """Discover QA units under a single CARACal session root.
 
     Parameters
     ----------
@@ -155,11 +154,11 @@ def discover_session(
 
     obsid = root.parent.name  # .../<obsid>_sdp_l0/caracal -> <obsid>_sdp_l0
 
-    keep_all  = (isinstance(products, str) and products.lower() == "all")
-    keep_set  = None if keep_all else {p.lower() for p in products}
+    keep_all = isinstance(products, str) and products.lower() == "all"
+    keep_set = None if keep_all else {p.lower() for p in products}
     point_set = None if pointings is None else set(pointings)
-    cube_all  = (cubes is None or (isinstance(cubes, str) and cubes.lower() == "all"))
-    cube_set  = None if cube_all else {_norm_cube(c) for c in cubes}
+    cube_all = cubes is None or (isinstance(cubes, str) and cubes.lower() == "all")
+    cube_set = None if cube_all else {_norm_cube(c) for c in cubes}
 
     units: dict[tuple[str, str], Unit] = {}
 
@@ -168,7 +167,7 @@ def discover_session(
             continue
         m = _POINTING_RE.match(pdir.name)
         if not m:
-            continue                       # skips output_hi_1gc, etc.
+            continue  # skips output_hi_1gc, etc.
         pointing = m.group(1)
         if point_set is not None and pointing not in point_set:
             continue
@@ -181,7 +180,7 @@ def discover_session(
                 continue
             if cube_set is not None and _norm_cube(cube_dir.name) not in cube_set:
                 continue
-            cube_id    = cube_dir.name
+            cube_id = cube_dir.name
             cube_short = f"c{cm.group(1)}"
 
             for fits_path in sorted(cube_dir.glob("*.fits")):
@@ -192,12 +191,12 @@ def discover_session(
                     continue
 
                 cp = CubeProduct(
-                        path=fits_path,
-                        product=product,
-                        pointing=pointing,
-                        cube_id=cube_id,
-                        label=f"{cube_short}-{product}",
-                        )
+                    path=fits_path,
+                    product=product,
+                    pointing=pointing,
+                    cube_id=cube_id,
+                    label=f"{cube_short}-{product}",
+                )
                 ukey = (pointing, cube_id)
                 if ukey not in units:
                     units[ukey] = Unit(pointing=pointing, cube_id=cube_id)
@@ -222,20 +221,19 @@ def discover_session(
 # Fallback globs tried (in order) when the configured pattern finds nothing,
 # so flag reports are picked up even if a session's layout differs slightly.
 _FLAG_FALLBACKS = [
-        "output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json",
-        "output_hi_*gc/diagnostic_plots/*-flagging-summary-*.json",
-        "output_hi_*/diagnostic_plots/*-flagging-summary-*.json",
-        "**/diagnostic_plots/*-flagging-summary-*.json",
-        "**/*-flagging-summary-*.json",
-        ]
+    "output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json",
+    "output_hi_*gc/diagnostic_plots/*-flagging-summary-*.json",
+    "output_hi_*/diagnostic_plots/*-flagging-summary-*.json",
+    "**/diagnostic_plots/*-flagging-summary-*.json",
+    "**/*-flagging-summary-*.json",
+]
 
 
 def discover_flag_reports(
-        root: str | Path,
-        glob_pattern: str | list | None,
-        ) -> tuple[list[Path], str | None]:
-    """
-    Resolve flagging-summary JSONs for a session, robustly.
+    root: str | Path,
+    glob_pattern: str | list | None,
+) -> tuple[list[Path], str | None]:
+    """Resolve flagging-summary JSONs for a session, robustly.
 
     *glob_pattern* may be a single glob, a list of globs (tried in order), or
     None to disable. Whatever is given is tried first; if nothing matches, a
@@ -244,15 +242,14 @@ def discover_flag_reports(
     *-plots-*.html files are naturally excluded (the pattern requires
     '-flagging-summary-*.json').
 
-    Returns (sorted_paths, pattern_that_matched) -- ([], None) if disabled or
+    Returns (sorted_paths, pattern_that_matched) - ([], None) if disabled or
     nothing was found anywhere.
     """
     if not glob_pattern:
         return [], None
     root = Path(root)
 
-    patterns: list[str] = ([glob_pattern] if isinstance(glob_pattern, str)
-                           else list(glob_pattern))
+    patterns: list[str] = [glob_pattern] if isinstance(glob_pattern, str) else list(glob_pattern)
     for fb in _FLAG_FALLBACKS:
         if fb not in patterns:
             patterns.append(fb)
@@ -269,8 +266,10 @@ def discover_flag_reports(
 
 def summarise(session: Session) -> str:
     """One-line-per-unit human summary, for logging."""
-    lines = [f"Session {session.obsid}: {len(session.units)} unit(s) across "
-             f"{len(session.pointings)} pointing(s)"]
+    lines = [
+        f"Session {session.obsid}: {len(session.units)} unit(s) across "
+        f"{len(session.pointings)} pointing(s)"
+    ]
     for u in session.units:
         prods = ", ".join(p.product for p in u.products)
         lines.append(f"  {u.key:<16} [{prods}]")

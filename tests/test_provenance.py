@@ -1,4 +1,5 @@
 """provenance: imaging provenance from FITS headers and the weighting penalty."""
+
 from astropy.io import fits
 
 from hi_cube_qa import provenance as pv
@@ -35,7 +36,9 @@ def test_natural_and_uniform_weighting_map_to_the_ends_of_the_scale_and_unknown_
     g["HISTORY"] = "wsclean -weight uniform"
     assert pv._find_robust(g) == -2.0
     assert pv._find_robust(fits.Header()) is None
-    assert pv._find_robust(_h(WSCWEIGH="uniform")) is None          # a keyword without a robust number is not trusted
+    assert (
+        pv._find_robust(_h(WSCWEIGH="uniform")) is None
+    )  # a keyword without a robust number is not trusted
 
 
 def test_niter_and_threshold_come_from_keywords_or_history():
@@ -48,10 +51,27 @@ def test_niter_and_threshold_come_from_keywords_or_history():
 
 
 def test_read_provenance_collects_the_observation_metadata_and_the_restoring_beam():
-    hdr = _h(TELESCOP="MeerKAT", OBJECT="G23", **{"DATE-OBS": "2020-12-16"}, BUNIT="JY/BEAM", WSCWEIGH="Briggs'(-0.5)")
-    bd = {"available": True, "median_bmaj_asec": 20.0, "median_bmin_asec": 15.0, "median_bpa_deg": 12.34}
+    hdr = _h(
+        TELESCOP="MeerKAT",
+        OBJECT="G23",
+        **{"DATE-OBS": "2020-12-16"},
+        BUNIT="JY/BEAM",
+        WSCWEIGH="Briggs'(-0.5)",
+    )
+    bd = {
+        "available": True,
+        "median_bmaj_asec": 20.0,
+        "median_bmin_asec": 15.0,
+        "median_bpa_deg": 12.34,
+    }
     p = pv.read_provenance(hdr, bd)
-    assert (p["telescope"], p["object"], p["date_obs"], p["bunit"], p["robust"]) == ("MeerKAT", "G23", "2020-12-16", "JY/BEAM", -0.5)
+    assert (p["telescope"], p["object"], p["date_obs"], p["bunit"], p["robust"]) == (
+        "MeerKAT",
+        "G23",
+        "2020-12-16",
+        "JY/BEAM",
+        -0.5,
+    )
     assert p["restoring_beam"] == '20.00" x 15.00", PA 12.3 deg'
     empty = pv.read_provenance(fits.Header())
     assert empty["telescope"] is None and empty["restoring_beam"] is None and empty["niter"] is None

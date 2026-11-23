@@ -1,25 +1,25 @@
+"""Assemble the self-contained interactive HTML QA report.
+
+One report per session. The session is organised by pointing; each pointing
+contains one block per cube_N "unit" (its dirty/image/residual products
+overlaid on shared axes), plus a session-level flagging section.
+"""
+
 from __future__ import annotations
+
 import os
 from pathlib import Path
 
-import plotly.io as pio
 import plotly.graph_objects as go
-##############################################################################
-#
-#  report.py: assemble the self-contained interactive HTML QA report.
-#
-#  One report per session. The session is organised by pointing; each pointing
-#  contains one block per cube_N "unit" (its dirty/image/residual products
-#  overlaid on shared axes), plus a session-level flagging section.
-#
-##############################################################################
+import plotly.io as pio
+
 COL_DIRTY = "#2E75B6"
-COL_TEXT  = "#E0E0E0"
-COL_BG    = "#0F1117"
-COL_GRID  = "#2A2D35"
-COL_WARN  = "#F39C12"
-COL_BAD   = "#C0392B"
-COL_GOOD  = "#27AE60"
+COL_TEXT = "#E0E0E0"
+COL_BG = "#0F1117"
+COL_GRID = "#2A2D35"
+COL_WARN = "#F39C12"
+COL_BAD = "#C0392B"
+COL_GOOD = "#27AE60"
 
 
 # Relabels the top (channel index) axis of a figure after a zoom or reset, so that
@@ -62,6 +62,7 @@ _CHANNEL_AXIS_SCRIPT = """
 
 class _FigRenderer:
     """Render Plotly figures to HTML divs, injecting the CDN script only once."""
+
     def __init__(self):
         self._first = True
 
@@ -69,12 +70,13 @@ class _FigRenderer:
         inc = "cdn" if self._first else False
         self._first = False
         return pio.to_html(
-                fig, full_html=False,
-                include_plotlyjs=inc,
-                div_id=div_id,
-                config={"displayModeBar": True, "scrollZoom": True, "responsive": True},
-                post_script=_CHANNEL_AXIS_SCRIPT,
-                )
+            fig,
+            full_html=False,
+            include_plotlyjs=inc,
+            div_id=div_id,
+            config={"displayModeBar": True, "scrollZoom": True, "responsive": True},
+            post_script=_CHANNEL_AXIS_SCRIPT,
+        )
 
 
 def _checklist_html(checklist: list[dict], title: str = "QA Checklist") -> str:
@@ -103,17 +105,17 @@ def _checklist_html(checklist: list[dict], title: str = "QA Checklist") -> str:
             else:
                 icon, colour, bg = "-", "#888", "transparent"
 
-            note_td = f"<td style='color:#aaa;font-size:0.85em;'>{r.get('note','')}</td>"
+            note_td = f"<td style='color:#aaa;font-size:0.85em;'>{r.get('note', '')}</td>"
             tr_rows += (
-                    f"<tr style='background:{bg};'>"
-                    f"<td style='color:{colour};font-weight:700;text-align:center;'>{icon}</td>"
-                    f"<td style='color:{colour};font-weight:600;'>{r['status']}</td>"
-                    f"<td>{r['criterion']}</td>"
-                    f"<td style='color:#ccc;font-size:0.88em;'>{r['description']}</td>"
-                    f"<td style='text-align:right;color:{COL_TEXT};'>{r['value']}</td>"
-                    f"{note_td}"
-                    f"</tr>\n"
-                    )
+                f"<tr style='background:{bg};'>"
+                f"<td style='color:{colour};font-weight:700;text-align:center;'>{icon}</td>"
+                f"<td style='color:{colour};font-weight:600;'>{r['status']}</td>"
+                f"<td>{r['criterion']}</td>"
+                f"<td style='color:#ccc;font-size:0.88em;'>{r['description']}</td>"
+                f"<td style='text-align:right;color:{COL_TEXT};'>{r['value']}</td>"
+                f"{note_td}"
+                f"</tr>\n"
+            )
 
         blocks.append(f"""
         <div style='margin-bottom:18px;'>
@@ -139,24 +141,26 @@ def _checklist_html(checklist: list[dict], title: str = "QA Checklist") -> str:
         </div>
         """)
 
-    return (f"<h4 style='color:#7EC8E3;font-family:Arial;margin:4px 0 10px 0;'>{title}</h4>"
-            + "".join(blocks))
+    return (
+        f"<h4 style='color:#7EC8E3;font-family:Arial;margin:4px 0 10px 0;'>{title}</h4>"
+        + "".join(blocks)
+    )
 
 
 # Figure ids rendered inside each unit, in display order.
 _UNIT_FIG_ORDER = [
-        ("summary",        "Summary"),
-        ("rms_curve",      "Per-channel RMS"),
-        ("rms_vs_theory",  "RMS / theory"),
-        ("cumulative_rms", "Cumulative RMS"),
-        ("rms_histogram",  "RMS histogram"),
-        ("noise_overview", "Noise overview"),
-        ("kurtosis",       "Non-Gaussianity (kurtosis)"),
-        ("spectral",       "Spectral profile"),
-        ("bandspec",       "Band spectrum"),
-        ("nhi",            "N_HI sensitivity"),
-        ("beam",           "Beam stats"),
-        ]
+    ("summary", "Summary"),
+    ("rms_curve", "Per-channel RMS"),
+    ("rms_vs_theory", "RMS / theory"),
+    ("cumulative_rms", "Cumulative RMS"),
+    ("rms_histogram", "RMS histogram"),
+    ("noise_overview", "Noise overview"),
+    ("kurtosis", "Non-Gaussianity (kurtosis)"),
+    ("spectral", "Spectral profile"),
+    ("bandspec", "Band spectrum"),
+    ("nhi", "N_HI sensitivity"),
+    ("beam", "Beam stats"),
+]
 
 
 def _provenance_html(unit: dict) -> str:
@@ -164,17 +168,21 @@ def _provenance_html(unit: dict) -> str:
     p = unit.get("provenance") or {}
     bits = []
     if unit.get("pb_corrected"):
-        bits.append("<span style='color:#F39C12;font-weight:600;'>&#9888; "
-                    "PB-corrected: noise is position-dependent, the single-number "
-                    "RMS is only indicative</span>")
+        bits.append(
+            "<span style='color:#F39C12;font-weight:600;'>&#9888; "
+            "PB-corrected: noise is position-dependent, the single-number "
+            "RMS is only indicative</span>"
+        )
     chips = []
+
     def chip(k, v):
         if v not in (None, ""):
             chips.append(f"<span class='chip'><b>{k}</b> {v}</span>")
+
     if p.get("robust") is not None:
         chip("robust", f"{p['robust']:+.1f}")
-    chip("N_ant", f"{unit.get('n_ant', '')} ({unit.get('n_ant_src','')})")
-    chip("nfac", f"{unit.get('nfac', '')} ({unit.get('nfac_src','')})")
+    chip("N_ant", f"{unit.get('n_ant', '')} ({unit.get('n_ant_src', '')})")
+    chip("nfac", f"{unit.get('nfac', '')} ({unit.get('nfac_src', '')})")
     if unit.get("flag_fraction") is not None:
         chip("flagged frac", f"{unit['flag_fraction']:.2f}")
     if p.get("niter") is not None:
@@ -187,23 +195,23 @@ def _provenance_html(unit: dict) -> str:
     if not chips and not bits:
         return ""
     warn = f"<div style='margin-bottom:4px;'>{' '.join(bits)}</div>" if bits else ""
-    return (f"<div class='prov'>{warn}{' '.join(chips)}</div>")
+    return f"<div class='prov'>{warn}{' '.join(chips)}</div>"
 
 
 def _unit_section(render: _FigRenderer, unit: dict) -> str:
     """Render one (pointing, cube_N) unit block: provenance + figures + maps."""
-    anchor   = unit["anchor"]
-    figures  = unit["figures"]
+    anchor = unit["anchor"]
+    figures = unit["figures"]
     products = ", ".join(unit["products"])
 
     parts = [
-            f'<section id="{anchor}" class="unit">',
-            f"<h3 class='unit-title'>{unit['pointing']} &nbsp;/&nbsp; "
-            f"{unit['cube_id']} "
-            f"<span class='unit-meta'>[{products}] &middot; {unit['nchan']} ch &middot; "
-            f"{unit['freq_lo']:.1f}&ndash;{unit['freq_hi']:.1f} MHz</span></h3>",
-            _provenance_html(unit),
-            ]
+        f'<section id="{anchor}" class="unit">',
+        f"<h3 class='unit-title'>{unit['pointing']} &nbsp;/&nbsp; "
+        f"{unit['cube_id']} "
+        f"<span class='unit-meta'>[{products}] &middot; {unit['nchan']} ch &middot; "
+        f"{unit['freq_lo']:.1f}&ndash;{unit['freq_hi']:.1f} MHz</span></h3>",
+        _provenance_html(unit),
+    ]
 
     for fid, _name in _UNIT_FIG_ORDER:
         fig = figures.get(fid)
@@ -214,29 +222,29 @@ def _unit_section(render: _FigRenderer, unit: dict) -> str:
         parts.append("<div class='maps'>" + "\n".join(unit["map_sections"]) + "</div>")
 
     if unit.get("checklist"):
-        parts.append("<div class='checklist'>"
-                     + _checklist_html(unit["checklist"], title="Checklist")
-                     + "</div>")
+        parts.append(
+            "<div class='checklist'>"
+            + _checklist_html(unit["checklist"], title="Checklist")
+            + "</div>"
+        )
 
     if unit.get("thumb_sections"):
-        parts.append("<div class='thumbs'>"
-                     + "\n".join(unit["thumb_sections"]) + "</div>")
+        parts.append("<div class='thumbs'>" + "\n".join(unit["thumb_sections"]) + "</div>")
 
     parts.append("</section>")
     return "\n".join(parts)
 
 
 def build_session_report(
-        out_path:      Path,
-        cfg,
-        obsid:         str,
-        units:         list[dict],
-        flag_fig,
-        radiometer:    dict,
-        flag_fraction: float = 0.0,
-        ) -> float:
-    """
-    Assemble and write one session's HTML QA report.
+    out_path: Path,
+    cfg,
+    obsid: str,
+    units: list[dict],
+    flag_fig,
+    radiometer: dict,
+    flag_fraction: float = 0.0,
+) -> float:
+    """Assemble and write one session's HTML QA report.
 
     Parameters
     ----------
@@ -247,24 +255,20 @@ def build_session_report(
     """
     render = _FigRenderer()
 
-    #--- Navigation grouped by pointing ---
+    # Navigation grouped by pointing
     by_pointing: dict[str, list[dict]] = {}
     for u in units:
         by_pointing.setdefault(u["pointing"], []).append(u)
 
     nav_groups = []
     for pointing, plist in by_pointing.items():
-        links = " ".join(
-                f'<a href="#{u["anchor"]}">{u["cube_id"]}</a>' for u in plist
-                )
-        nav_groups.append(
-                f'<span class="nav-group"><b>{pointing}</b> {links}</span>'
-                )
+        links = " ".join(f'<a href="#{u["anchor"]}">{u["cube_id"]}</a>' for u in plist)
+        nav_groups.append(f'<span class="nav-group"><b>{pointing}</b> {links}</span>')
     if flag_fig is not None:
         nav_groups.append('<span class="nav-group"><a href="#flags">Flagging</a></span>')
     nav_html = "\n".join(nav_groups)
 
-    #--- Radiometer note ---
+    # Radiometer note
     rad = radiometer
     if rad["sefd"]:
         noise_src = f"SEFD = {rad['sefd']} Jy"
@@ -273,35 +277,35 @@ def build_session_report(
     sefd_curve = rad.get("sefd_curve", "default")
     curve_note = "freq-dependent SEFD" if sefd_curve not in ("flat",) else "flat SEFD"
     theory_note = (
-            f"{noise_src} &nbsp; n<sub>fac</sub> = {rad['nfac']} &nbsp; "
-            f"N<sub>ant</sub> = {rad['n_ant']} &nbsp; "
-            f"T<sub>on</sub> = {rad['t_total']} h &nbsp; "
-            f"flagged frac &asymp; {flag_fraction:.2f} (per pointing) &nbsp; ({curve_note}; "
-            f"&sigma;<sub>theory</sub>(&nu;) per cube, flagging-reduced)"
-            )
+        f"{noise_src} &nbsp; n<sub>fac</sub> = {rad['nfac']} &nbsp; "
+        f"N<sub>ant</sub> = {rad['n_ant']} &nbsp; "
+        f"T<sub>on</sub> = {rad['t_total']} h &nbsp; "
+        f"flagged frac &asymp; {flag_fraction:.2f} (per pointing) &nbsp; ({curve_note}; "
+        f"&sigma;<sub>theory</sub>(&nu;) per cube, flagging-reduced)"
+    )
 
-    #--- Session overview table (one row per unit) ---
+    # Session overview table (one row per unit)
     overview_rows = ""
     for u in units:
         overview_rows += (
-                f"<tr>"
-                f"<td><a href='#{u['anchor']}'>{u['pointing']} / {u['cube_id']}</a></td>"
-                f"<td>{', '.join(u['products'])}</td>"
-                f"<td>{u['nchan']} ch</td>"
-                f"<td>{u['freq_lo']:.1f} - {u['freq_hi']:.1f} MHz</td>"
-                f"<td>{u.get('overall','-')}</td>"
-                f"</tr>\n"
-                )
+            f"<tr>"
+            f"<td><a href='#{u['anchor']}'>{u['pointing']} / {u['cube_id']}</a></td>"
+            f"<td>{', '.join(u['products'])}</td>"
+            f"<td>{u['nchan']} ch</td>"
+            f"<td>{u['freq_lo']:.1f} - {u['freq_hi']:.1f} MHz</td>"
+            f"<td>{u.get('overall', '-')}</td>"
+            f"</tr>\n"
+        )
 
-    #--- Unit sections ---
+    # Unit sections
     sections = [_unit_section(render, u) for u in units]
 
     if flag_fig is not None:
         sections.append(
-                f'<section id="flags"><h3 class="unit-title">Flagging Summary '
-                f'<span class="unit-meta">(session {obsid})</span></h3>'
-                f'{render(flag_fig, "fig_flags")}</section>'
-                )
+            f'<section id="flags"><h3 class="unit-title">Flagging Summary '
+            f'<span class="unit-meta">(session {obsid})</span></h3>'
+            f"{render(flag_fig, 'fig_flags')}</section>"
+        )
 
     css = f"""
     *, *::before, *::after {{ box-sizing: border-box; }}
@@ -381,26 +385,32 @@ def build_session_report(
 # Named HTML entities used anywhere in the figures (titles, table cells,
 # annotations). A real browser resolves these fine for the interactive HTML
 # report, but Kaleido's bundled Chromium (used only for static PNG export)
-# does not reliably decode them and fails the whole render -- so we swap them
+# does not reliably decode them and fails the whole render - so we swap them
 # for the literal Unicode character in a throwaway COPY used only for the PNG,
 # never touching the figure object used for the HTML report.
 _KALEIDO_ENTITY_MAP = {
-        "&sigma;": "σ", "&Sigma;": "Σ",
-        "&eta;":   "η", "&Eta;":   "Η",
-        "&mdash;": "—", "&ndash;": "–",
-        "&deg;":   "°", "&times;": "×",
-        "&plusmn;": "±", "&asymp;": "≈",
-        "&middot;": "·",
-        }
+    "&sigma;": "σ",
+    "&Sigma;": "Σ",
+    "&eta;": "η",
+    "&Eta;": "Η",
+    "&mdash;": "—",
+    "&ndash;": "–",
+    "&deg;": "°",
+    "&times;": "×",
+    "&plusmn;": "±",
+    "&asymp;": "≈",
+    "&middot;": "·",
+}
 
 
 def _sanitize_for_kaleido(fig: go.Figure) -> go.Figure:
     """Return a deep copy of *fig* with named HTML entities resolved to literal
     Unicode characters, for static PNG export only (see _KALEIDO_ENTITY_MAP)."""
     import re
+
     pattern = re.compile("|".join(re.escape(k) for k in _KALEIDO_ENTITY_MAP))
     if not pattern.search(str(fig.to_dict())):
-        return fig   # nothing to do; avoid an unnecessary deep copy
+        return fig  # nothing to do; avoid an unnecessary deep copy
 
     def repl(s: str) -> str:
         return pattern.sub(lambda m: _KALEIDO_ENTITY_MAP[m.group()], s)
@@ -426,26 +436,25 @@ def _sanitize_for_kaleido(fig: go.Figure) -> go.Figure:
 
 
 def png_export_available() -> tuple[bool, str]:
-    """
-    One-time functional check that Plotly can actually render a PNG (needs
-    the 'kaleido' package, and a working Chromium under it -- kaleido can be
+    """One-time functional check that Plotly can actually render a PNG (needs
+    the 'kaleido' package, and a working Chromium under it - kaleido can be
     installed but still fail in sandboxed HPC/Singularity environments, so a
     plain `import kaleido` is not sufficient). Writes a throwaway image to a
     temp file; never touches the real output directory.
     """
     import tempfile
+
     try:
         fig = go.Figure(go.Scatter(x=[0, 1], y=[0, 1]))
         with tempfile.TemporaryDirectory() as td:
             fig.write_image(str(Path(td) / "probe.png"))
         return True, ""
-    except Exception as exc:                                       # noqa: BLE001
+    except Exception as exc:
         return False, str(exc)
 
 
 def export_figs_png(figures, out_dir, prefix, fig_ids, scale=2):
-    """
-    Save selected Plotly figures as standalone PNGs (needs the 'kaleido'
+    """Save selected Plotly figures as standalone PNGs (needs the 'kaleido'
     package). Returns (n_saved, ok, err). If kaleido is unavailable the first
     write raises; we stop and return ok=False so the caller can warn once and
     disable PNG export for the rest of the run.
@@ -465,20 +474,20 @@ def export_figs_png(figures, out_dir, prefix, fig_ids, scale=2):
             made_dir = True
         try:
             _sanitize_for_kaleido(fig).write_image(
-                    str(out_dir / f"{prefix}_{fid}.png"), scale=scale)
-        except Exception as exc:                                   # noqa: BLE001
+                str(out_dir / f"{prefix}_{fid}.png"), scale=scale
+            )
+        except Exception as exc:
             return n, False, str(exc)
         n += 1
     return n, True, ""
 
 
 def build_master_index(
-        out_path:  Path,
-        summaries: list[dict],
-        title:     str = "MeerKAT HI Cube QA",
-        ) -> float:
-    """
-    Write a small master "shell" page that frames each per-session report.
+    out_path: Path,
+    summaries: list[dict],
+    title: str = "MeerKAT HI Cube QA",
+) -> float:
+    """Write a small master "shell" page that frames each per-session report.
 
     A session sidebar drives an <iframe>; clicking a session loads its existing
     <obsid>_qa_report.html on demand (so the master stays tiny and fast, and
@@ -508,10 +517,10 @@ def build_master_index(
             f'<li class="sess{" active" if i == 0 else ""}" data-src="{src}">'
             f'<div class="sess-id">{s["obsid"]}</div>'
             f'<div class="sess-meta">{s["n_pointings"]} pointings &middot; '
-            f'{s["n_units"]} units</div>'
+            f"{s['n_units']} units</div>"
             f'<div class="sess-meta sess-prod">{prods}</div>'
-            f'<span class="grade" style="background:{gcol};">{s.get("overall","-")}</span>'
-            f'</li>\n'
+            f'<span class="grade" style="background:{gcol};">{s.get("overall", "-")}</span>'
+            f"</li>\n"
         )
 
     css = f"""

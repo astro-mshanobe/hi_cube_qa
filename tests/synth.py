@@ -1,4 +1,5 @@
 """Synthetic cubes with known noise, for validating hi_cube_qa estimators."""
+
 import numpy as np
 
 

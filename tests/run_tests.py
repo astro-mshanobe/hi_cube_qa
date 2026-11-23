@@ -7,6 +7,7 @@ Run the hi_cube_qa validation tests without needing pytest.
 
 (`python3 -m pytest tests/` also works wherever pytest is installed.)
 """
+
 import glob
 import importlib.util
 import os
@@ -43,7 +44,8 @@ def main(argv) -> int:
         if pattern not in os.path.basename(path):
             continue
         spec = importlib.util.spec_from_file_location(
-            os.path.splitext(os.path.basename(path))[0], path)
+            os.path.splitext(os.path.basename(path))[0], path
+        )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         n_files += 1

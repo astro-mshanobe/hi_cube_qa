@@ -12,13 +12,13 @@ level continuum-residual persistence, ...) and still carry a small residual
 baseline trend. When pointings are combined in their overlap regions, a
 trend that differs pointing-to-pointing shows up as a seam or gradient in
 the mosaic that none of the single-cube checks would catch, because none of
-them look at the SHAPE of the band-averaged baseline -- only its noise level
+them look at the SHAPE of the band-averaged baseline - only its noise level
 and pixel-level outliers.
 
 This is a standalone companion script, not folded into main.py, because:
   - the main pipeline never persists the per-channel mean anywhere (only
     rms/quality/kurtosis are written to the per-channel CSV), so there is
-    nothing to reuse after the fact -- the cubes have to be re-read; and
+    nothing to reuse after the fact - the cubes have to be re-read; and
   - discovery.py's product parsing is oriented around the CARACal imaging
     triad (dirty/image/residual, from names like '..._HI.image.fits') and
     will not find 'imsub-line.fits' (no dot before the suffix), which is
@@ -33,7 +33,9 @@ Usage:
   hi-cube-qa-baseline --config qa_G23_all_sessions.yaml
   hi-cube-qa-baseline --config qa_G23_all_sessions.yaml --degree 2
 """
+
 from __future__ import annotations
+
 import argparse
 import csv
 import glob
@@ -45,17 +47,17 @@ import numpy as np
 from astropy.modeling import fitting, models
 from astropy.stats import sigma_clip
 
+from .beam import beam_stats
 from .config import load_config
+from .noise import mad_rms_planes
 from .reduce import CubeHandle, _pix_per_beam
-from .noise  import mad_rms_planes
-from .beam   import beam_stats
 
 
 def per_channel_mean_rms(h: CubeHandle, chunk: int = 64):
     """Chunked pass -> per-channel mean (baseline) and MAD-RMS (noise)."""
     nchan = h.nchan
     mean = np.full(nchan, np.nan)
-    rms  = np.full(nchan, np.nan)
+    rms = np.full(nchan, np.nan)
     for a in range(0, nchan, chunk):
         b = min(a + chunk, nchan)
         block = np.asarray(h.data[a:b], dtype=np.float32)
@@ -68,10 +70,9 @@ def per_channel_mean_rms(h: CubeHandle, chunk: int = 64):
 
 
 def _robust_polyfit(x, y, degree, n_sigma=4.0, n_iter=3):
-    """
-    Sigma-clipped polynomial fit. A handful of outlier channels (residual
+    """Sigma-clipped polynomial fit. A handful of outlier channels (residual
     RFI, under-flagged bad channels, ...) can otherwise dominate an ordinary
-    least-squares fit's slope even when the bulk of the band is flat -- a few
+    least-squares fit's slope even when the bulk of the band is flat - a few
     high-leverage points is exactly the failure mode this check needs to be
     robust against, since it is meant to catch a genuine SMOOTH systematic
     trend (the thing that creates mosaic seams), not isolated bad channels.
@@ -81,30 +82,34 @@ def _robust_polyfit(x, y, degree, n_sigma=4.0, n_iter=3):
     are an ordinary least-squares fit to the retained points, in np.polyval
     order.
 
-    Returns (coeffs, keep_mask) -- keep_mask is True for points used in the
+    Returns (coeffs, keep_mask) - keep_mask is True for points used in the
     final fit. n_sigma <= 0 disables clipping (keep_mask is all True).
     """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     keep = np.ones(len(x), dtype=bool)
     if n_sigma > 0:
-        xs = (x - x.mean()) / (np.ptp(x) or 1.0)          # conditioning only
+        xs = (x - x.mean()) / (np.ptp(x) or 1.0)  # conditioning only
         fitter = fitting.FittingWithOutlierRemoval(
-            fitting.LinearLSQFitter(), sigma_clip, niter=n_iter,
-            sigma=n_sigma, cenfunc="median", stdfunc="mad_std", maxiters=1)
+            fitting.LinearLSQFitter(),
+            sigma_clip,
+            niter=n_iter,
+            sigma=n_sigma,
+            cenfunc="median",
+            stdfunc="mad_std",
+            maxiters=1,
+        )
         _, rejected = fitter(models.Polynomial1D(degree), xs, y)
         if (~rejected).sum() >= degree + 2:
             keep = ~rejected
     return np.polyfit(x[keep], y[keep], degree), keep
 
 
-def baseline_check(h: CubeHandle, degree: int = 1, chunk: int = 64,
-                    n_sigma: float = 4.0) -> dict:
-    """
-    Fit a low-order polynomial to the per-channel mean (baseline) vs
+def baseline_check(h: CubeHandle, degree: int = 1, chunk: int = 64, n_sigma: float = 4.0) -> dict:
+    """Fit a low-order polynomial to the per-channel mean (baseline) vs
     velocity, then express the fitted trend's peak-to-peak amplitude in
     units of the standard error on the per-channel mean (not the raw
-    per-pixel RMS -- averaging over ~ny*nx/pix_per_beam independent beam
+    per-pixel RMS - averaging over ~ny*nx/pix_per_beam independent beam
     areas per channel shrinks the noise on the MEAN well below the per-pixel
     RMS, so per-pixel RMS alone would be far too permissive a yardstick).
 
@@ -139,8 +144,13 @@ def baseline_check(h: CubeHandle, degree: int = 1, chunk: int = 64,
         baseline_sigma=baseline_sigma,
         n_channels_used=int(fin.sum()),
         n_clipped=n_clipped,
-        # raw arrays for optional plotting -- small (nchan-length), cheap to keep
-        vel_kms=x, freq_hz=freq, mean_jy=y, sem_jy=sem, fit_jy=fit, keep_mask=keep,
+        # raw arrays for optional plotting - small (nchan-length), cheap to keep
+        vel_kms=x,
+        freq_hz=freq,
+        mean_jy=y,
+        sem_jy=sem,
+        fit_jy=fit,
+        keep_mask=keep,
     )
 
 
@@ -148,20 +158,41 @@ def plot_baseline(res: dict, label: str, out_png: str) -> None:
     """Diagnostic plot: per-channel mean (baseline) with SEM error bars, and
     the fitted trend that baseline_sigma is computed from."""
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     x, y, sem, fit = res["vel_kms"], res["mean_jy"], res["sem_jy"], res["fit_jy"]
     keep = res.get("keep_mask", np.ones(len(x), dtype=bool))
     fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.errorbar(x[keep], y[keep] * 1e3, yerr=sem[keep] * 1e3, fmt=".", ms=3,
-                lw=0.5, alpha=0.5, color="tab:blue", label="used in fit")
+    ax.errorbar(
+        x[keep],
+        y[keep] * 1e3,
+        yerr=sem[keep] * 1e3,
+        fmt=".",
+        ms=3,
+        lw=0.5,
+        alpha=0.5,
+        color="tab:blue",
+        label="used in fit",
+    )
     if (~keep).any():
-        ax.plot(x[~keep], y[~keep] * 1e3, "x", ms=6, color="tab:orange",
-                label=f"sigma-clipped ({int((~keep).sum())} channels)")
-    ax.plot(x, fit * 1e3, "-", lw=2, color="tab:red",
-            label=f"degree-{res['degree']} fit "
-                  f"(baseline_sigma={res['baseline_sigma']:.2f})")
+        ax.plot(
+            x[~keep],
+            y[~keep] * 1e3,
+            "x",
+            ms=6,
+            color="tab:orange",
+            label=f"sigma-clipped ({int((~keep).sum())} channels)",
+        )
+    ax.plot(
+        x,
+        fit * 1e3,
+        "-",
+        lw=2,
+        color="tab:red",
+        label=f"degree-{res['degree']} fit (baseline_sigma={res['baseline_sigma']:.2f})",
+    )
     ax.axhline(0, color="k", ls="--", lw=0.8, alpha=0.6)
     ax.set_xlabel("Velocity [km/s]")
     ax.set_ylabel("Channel-averaged flux [mJy]")
@@ -183,14 +214,12 @@ def classify(baseline_sigma, warn=5.0, bad=10.0) -> str:
 
 
 def find_imsub_cubes(root: str, pattern: str = "imsub-line.fits") -> list[str]:
-    """
-    pattern is glob-matched inside each cube_N/ dir. Default is the
+    """pattern is glob-matched inside each cube_N/ dir. Default is the
     continuum-subtracted, mosaic-ready product. Pass e.g. '*_HI.image.fits'
-    to instead check the pre-continuum-subtraction cleaned image -- useful
+    to instead check the pre-continuum-subtraction cleaned image - useful
     as an A/B comparison of what imcontsub actually bought you.
     """
-    return sorted(glob.glob(os.path.join(root, "output_hi_p*", "cubes", "cube_*",
-                                          pattern)))
+    return sorted(glob.glob(os.path.join(root, "output_hi_p*", "cubes", "cube_*", pattern)))
 
 
 def main():
@@ -198,38 +227,69 @@ def main():
         description="Check per-cube baseline flatness (mosaicking prep).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--config", default="qa_G23_all_sessions.yaml",
-                     help="Same YAML config used by main.py -- session roots are reused")
-    ap.add_argument("--degree", type=int, default=1,
-                     help="polynomial degree for the baseline fit "
-                          "(1 = slope only, 2 = + curvature)")
-    ap.add_argument("--warn-sigma", type=float, default=5.0,
-                     help="baseline_sigma above this -> Warn (matches the "
-                          "toolkit's kurtosis_warn_sigma convention)")
-    ap.add_argument("--bad-sigma", type=float, default=10.0,
-                     help="baseline_sigma above this -> Fail")
-    ap.add_argument("--out", default=None,
-                     help="output CSV (default: <output.dir>/baseline_flatness.csv)")
-    ap.add_argument("--limit", type=int, default=None,
-                     help="process only the first N cubes found (for quick testing)")
-    ap.add_argument("--pattern", default="imsub-line.fits",
-                     help="filename glob to match inside each cube_N/ dir "
-                          "(default: the continuum-subtracted product). Pass "
-                          "'*_HI.image.fits' to check the pre-imcontsub image "
-                          "instead, e.g. for an A/B comparison.")
-    ap.add_argument("--pointing", default=None,
-                     help="comma-separated pointing names to restrict to, "
-                          "e.g. 'p07,p11' (default: all)")
-    ap.add_argument("--plot", action="store_true",
-                     help="save a per-cube diagnostic PNG (mean vs velocity "
-                          "with the fitted trend) next to the output CSV")
-    ap.add_argument("--sigma-clip", type=float, default=4.0,
-                     help="exclude channels this many robust-sigma from the "
-                          "fit before measuring the trend (0 disables clipping)")
-    ap.add_argument("--dump-clipped", action="store_true",
-                     help="write the frequency/velocity of every sigma-clipped "
-                          "channel to <out_dir>/baseline_clipped_channels.csv "
-                          "(e.g. to cross-check against a static RFI mask)")
+    ap.add_argument(
+        "--config",
+        default="qa_G23_all_sessions.yaml",
+        help="Same YAML config used by main.py - session roots are reused",
+    )
+    ap.add_argument(
+        "--degree",
+        type=int,
+        default=1,
+        help="polynomial degree for the baseline fit (1 = slope only, 2 = + curvature)",
+    )
+    ap.add_argument(
+        "--warn-sigma",
+        type=float,
+        default=5.0,
+        help="baseline_sigma above this -> Warn (matches the "
+        "toolkit's kurtosis_warn_sigma convention)",
+    )
+    ap.add_argument(
+        "--bad-sigma", type=float, default=10.0, help="baseline_sigma above this -> Fail"
+    )
+    ap.add_argument(
+        "--out", default=None, help="output CSV (default: <output.dir>/baseline_flatness.csv)"
+    )
+    ap.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="process only the first N cubes found (for quick testing)",
+    )
+    ap.add_argument(
+        "--pattern",
+        default="imsub-line.fits",
+        help="filename glob to match inside each cube_N/ dir "
+        "(default: the continuum-subtracted product). Pass "
+        "'*_HI.image.fits' to check the pre-imcontsub image "
+        "instead, e.g. for an A/B comparison.",
+    )
+    ap.add_argument(
+        "--pointing",
+        default=None,
+        help="comma-separated pointing names to restrict to, e.g. 'p07,p11' (default: all)",
+    )
+    ap.add_argument(
+        "--plot",
+        action="store_true",
+        help="save a per-cube diagnostic PNG (mean vs velocity "
+        "with the fitted trend) next to the output CSV",
+    )
+    ap.add_argument(
+        "--sigma-clip",
+        type=float,
+        default=4.0,
+        help="exclude channels this many robust-sigma from the "
+        "fit before measuring the trend (0 disables clipping)",
+    )
+    ap.add_argument(
+        "--dump-clipped",
+        action="store_true",
+        help="write the frequency/velocity of every sigma-clipped "
+        "channel to <out_dir>/baseline_clipped_channels.csv "
+        "(e.g. to cross-check against a static RFI mask)",
+    )
     a = ap.parse_args()
     want_pointings = set(a.pointing.split(",")) if a.pointing else None
 
@@ -251,8 +311,9 @@ def main():
         print(f"{obsid}: {len(cubes)} cube(s)")
         for cube_path in cubes:
             parts = cube_path.split(os.sep)
-            pointing = next((p[len("output_hi_"):] for p in parts
-                              if p.startswith("output_hi_p")), "?")
+            pointing = next(
+                (p[len("output_hi_") :] for p in parts if p.startswith("output_hi_p")), "?"
+            )
             if want_pointings is not None and pointing not in want_pointings:
                 continue
             if a.limit is not None and n_done >= a.limit:
@@ -265,47 +326,70 @@ def main():
                 h = CubeHandle(cube_path)
                 res = baseline_check(h, degree=a.degree, n_sigma=a.sigma_clip)
                 h.close()
-            except Exception as e:                                    # noqa: BLE001
+            except Exception as e:
                 print(f"  {label}: ! failed: {e}", file=sys.stderr)
                 res = dict(available=False)
 
             bsig = res.get("baseline_sigma")
             status = classify(bsig, a.warn_sigma, a.bad_sigma)
             if res.get("available"):
-                print(f"  {label}: {status}  (baseline_sigma={bsig:.2f}, "
-                      f"amplitude={res['baseline_amplitude_jy']*1e3:.3f} mJy, "
-                      f"clipped={res['n_clipped']}/{res['n_channels_used']})")
+                print(
+                    f"  {label}: {status}  (baseline_sigma={bsig:.2f}, "
+                    f"amplitude={res['baseline_amplitude_jy'] * 1e3:.3f} mJy, "
+                    f"clipped={res['n_clipped']}/{res['n_channels_used']})"
+                )
                 if a.plot:
-                    png_path = str(cfg.out_dir() /
-                                    f"baseline_{obsid}_{pointing}_{cube_id}.png")
+                    png_path = str(cfg.out_dir() / f"baseline_{obsid}_{pointing}_{cube_id}.png")
                     plot_baseline(res, f"{obsid} {label}", png_path)
                     print(f"    -> {png_path}")
                 if a.dump_clipped:
                     keep = res["keep_mask"]
                     for fq, vv in zip(res["freq_hz"][~keep], res["vel_kms"][~keep]):
-                        clipped_rows.append(dict(
-                            obsid=obsid, pointing=pointing, cube=cube_id,
-                            freq_mhz=f"{fq / 1e6:.4f}", vel_kms=f"{vv:.2f}",
-                        ))
+                        clipped_rows.append(
+                            dict(
+                                obsid=obsid,
+                                pointing=pointing,
+                                cube=cube_id,
+                                freq_mhz=f"{fq / 1e6:.4f}",
+                                vel_kms=f"{vv:.2f}",
+                            )
+                        )
             else:
                 print(f"  {label}: {status}  (not enough finite channels)")
 
-            rows.append(dict(
-                obsid=obsid, pointing=pointing, cube=cube_id, path=cube_path,
-                status=status,
-                baseline_sigma=f"{bsig:.3f}" if res.get("available") else "",
-                baseline_amplitude_mjy=(f"{res['baseline_amplitude_jy']*1e3:.4f}"
-                                         if res.get("available") else ""),
-                typical_sem_mjy=(f"{res['typical_sem_jy']*1e3:.4f}"
-                                  if res.get("available") else ""),
-                degree=res.get("degree", a.degree),
-                n_channels_used=res.get("n_channels_used", ""),
-                n_clipped=res.get("n_clipped", ""),
-            ))
+            rows.append(
+                dict(
+                    obsid=obsid,
+                    pointing=pointing,
+                    cube=cube_id,
+                    path=cube_path,
+                    status=status,
+                    baseline_sigma=f"{bsig:.3f}" if res.get("available") else "",
+                    baseline_amplitude_mjy=(
+                        f"{res['baseline_amplitude_jy'] * 1e3:.4f}" if res.get("available") else ""
+                    ),
+                    typical_sem_mjy=(
+                        f"{res['typical_sem_jy'] * 1e3:.4f}" if res.get("available") else ""
+                    ),
+                    degree=res.get("degree", a.degree),
+                    n_channels_used=res.get("n_channels_used", ""),
+                    n_clipped=res.get("n_clipped", ""),
+                )
+            )
 
-    fieldnames = ["obsid", "pointing", "cube", "path", "status", "baseline_sigma",
-                  "baseline_amplitude_mjy", "typical_sem_mjy", "degree",
-                  "n_channels_used", "n_clipped"]
+    fieldnames = [
+        "obsid",
+        "pointing",
+        "cube",
+        "path",
+        "status",
+        "baseline_sigma",
+        "baseline_amplitude_mjy",
+        "typical_sem_mjy",
+        "degree",
+        "n_channels_used",
+        "n_clipped",
+    ]
     with open(out_path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
@@ -314,8 +398,7 @@ def main():
     if a.dump_clipped:
         clipped_path = str(cfg.out_dir() / "baseline_clipped_channels.csv")
         with open(clipped_path, "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=["obsid", "pointing", "cube",
-                                               "freq_mhz", "vel_kms"])
+            w = csv.DictWriter(f, fieldnames=["obsid", "pointing", "cube", "freq_mhz", "vel_kms"])
             w.writeheader()
             w.writerows(clipped_rows)
         print(f"{len(clipped_rows)} clipped-channel rows -> {clipped_path}")
@@ -323,14 +406,16 @@ def main():
     n_pass = sum(1 for r in rows if r["status"] == "Pass")
     n_warn = sum(1 for r in rows if r["status"] == "Warn")
     n_fail = sum(1 for r in rows if r["status"] == "Fail")
-    n_na   = sum(1 for r in rows if r["status"] == "N/A")
+    n_na = sum(1 for r in rows if r["status"] == "N/A")
     print(f"\n{len(rows)} cubes checked -> {out_path}")
     print(f"  Pass: {n_pass}   Warn: {n_warn}   Fail: {n_fail}   N/A: {n_na}")
     if n_fail:
-        print("\n  Fail = baseline trend is a large multiple of the noise on the "
-              "channel-averaged mean. Investigate before using these pointings "
-              "in a mosaic -- a residual slope/curvature this size will likely "
-              "show as a seam in overlap regions.")
+        print(
+            "\n  Fail = baseline trend is a large multiple of the noise on the "
+            "channel-averaged mean. Investigate before using these pointings "
+            "in a mosaic - a residual slope/curvature this size will likely "
+            "show as a seam in overlap regions."
+        )
 
 
 if __name__ == "__main__":

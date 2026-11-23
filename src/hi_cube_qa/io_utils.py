@@ -1,6 +1,8 @@
+"""FITS cube loading and CARACal flag-report parsing."""
+
 from __future__ import annotations
+
 import json
-import os
 import warnings
 from pathlib import Path
 
@@ -8,18 +10,14 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 from astropy.wcs import WCS
-##############################################################################
-#
-#  io_utils.py: FITS cube loading and CARACal flag-report parsing.
-#
-##############################################################################
-HI_REST_FREQ_HZ = 1.420405752e9  # Hz
-C_KMS           = 2.99792458e5   # km/s
 
-#--- Cube Loading ---
+HI_REST_FREQ_HZ = 1.420405752e9  # Hz
+C_KMS = 2.99792458e5  # km/s
+
+
+# Cube Loading
 def _find_spectral_axis(hdr):
-    """
-    Find the spectral axis in a FITS header.
+    """Find the spectral axis in a FITS header.
 
     Returns (axis_number, axis_type) where axis_type is one of:
         'FREQ', 'VELO', 'VOPT', 'VRAD', or None if not found.
@@ -39,32 +37,31 @@ def _find_spectral_axis(hdr):
                 return ax, prefix
     return None, None
 
+
 def _get_rest_freq(hdr):
     """Extract rest frequency from header (RESTFRQ or RESTFREQ keyword)."""
     for key in ("RESTFRQ", "RESTFREQ"):
         val = hdr.get(key, None)
         if val is not None and float(val) > 0:
             return float(val)
-    return HI_REST_FREQ_HZ   # default to HI 21cm
+    return HI_REST_FREQ_HZ  # default to HI 21cm
+
 
 _KMS = u.km / u.s
 
 
 def _hz_to_radio_kms(freq_hz, rest_hz):
     """Frequency -> radio-convention velocity (astropy doppler_radio)."""
-    return (np.asarray(freq_hz, dtype=float) * u.Hz).to(
-            _KMS, u.doppler_radio(rest_hz * u.Hz)).value
+    return (np.asarray(freq_hz, dtype=float) * u.Hz).to(_KMS, u.doppler_radio(rest_hz * u.Hz)).value
 
 
 def _radio_kms_to_hz(vel_kms, rest_hz):
     """Radio-convention velocity -> frequency (astropy doppler_radio)."""
-    return (np.asarray(vel_kms, dtype=float) * _KMS).to(
-            u.Hz, u.doppler_radio(rest_hz * u.Hz)).value
+    return (np.asarray(vel_kms, dtype=float) * _KMS).to(u.Hz, u.doppler_radio(rest_hz * u.Hz)).value
 
 
 def frequency_velocity(hdr, nchan: int, quiet: bool = False) -> tuple:
-    """
-    Build matched (freq_hz, vel_kms) arrays of length *nchan* from a header.
+    """Build matched (freq_hz, vel_kms) arrays of length *nchan* from a header.
 
     Handles spectral axes stored as FREQ, VELO/VRAD, or VOPT, using the radio
     velocity convention for the returned velocities. Falls back to a dummy
@@ -76,7 +73,7 @@ def frequency_velocity(hdr, nchan: int, quiet: bool = False) -> tuple:
     freq_hz = vel_kms = None
 
     if spec_ax is not None:
-        n     = int(hdr.get(f"NAXIS{spec_ax}", nchan))
+        n = int(hdr.get(f"NAXIS{spec_ax}", nchan))
         crpix = hdr.get(f"CRPIX{spec_ax}", 1)
         crval = hdr.get(f"CRVAL{spec_ax}", 0)
         cdelt = hdr.get(f"CDELT{spec_ax}", 1)
@@ -86,33 +83,31 @@ def frequency_velocity(hdr, nchan: int, quiet: bool = False) -> tuple:
             freq_hz = pix_vals
             vel_kms = _hz_to_radio_kms(freq_hz, rest_freq)
         elif spec_type in ("VELO", "VRAD"):
-            cunit   = hdr.get(f"CUNIT{spec_ax}", "m/s").strip().lower()
+            cunit = hdr.get(f"CUNIT{spec_ax}", "m/s").strip().lower()
             vel_kms = pix_vals if cunit == "km/s" else pix_vals / 1e3
             freq_hz = _radio_kms_to_hz(vel_kms, rest_freq)
         elif spec_type == "VOPT":
-            cunit   = hdr.get(f"CUNIT{spec_ax}", "m/s").strip().lower()
+            cunit = hdr.get(f"CUNIT{spec_ax}", "m/s").strip().lower()
             vel_opt = pix_vals if cunit == "km/s" else pix_vals / 1e3
-            freq_hz = (vel_opt * _KMS).to(
-                    u.Hz, u.doppler_optical(rest_freq * u.Hz)).value
+            freq_hz = (vel_opt * _KMS).to(u.Hz, u.doppler_optical(rest_freq * u.Hz)).value
             vel_kms = _hz_to_radio_kms(freq_hz, rest_freq)
 
         if freq_hz is not None and len(freq_hz) != nchan:
-            freq_hz = vel_kms = None   # header axis disagrees with data
+            freq_hz = vel_kms = None  # header axis disagrees with data
 
     if freq_hz is None:
         freq_hz = np.linspace(1.30e9, 1.43e9, nchan)
         vel_kms = _hz_to_radio_kms(freq_hz, rest_freq)
         if not quiet:
             warnings.warn(
-                    "[io_utils] No usable spectral axis; using a dummy frequency "
-                    "grid.", stacklevel=2)
+                "[io_utils] No usable spectral axis; using a dummy frequency grid.", stacklevel=2
+            )
 
     return np.asarray(freq_hz, dtype=float), np.asarray(vel_kms, dtype=float)
 
 
 def load_cube(path: str | Path) -> tuple:
-    """
-    Loads a FITS spectral cube fully into memory.
+    """Loads a FITS spectral cube fully into memory.
 
     Handles spectral axes stored as FREQ, VELO-LSR, VOPT, or VRAD. Retained for
     callers that want the whole cube; the QA pipeline uses the streaming
@@ -120,7 +115,7 @@ def load_cube(path: str | Path) -> tuple:
     """
     path = str(path)
     with fits.open(path) as hdul:
-        hdr  = hdul[0].header
+        hdr = hdul[0].header
         data = hdul[0].data.squeeze()  # remove degenerate axes (Stokes etc.)
     wcs_full = WCS(hdr, naxis=hdr["NAXIS"])
 
@@ -128,16 +123,16 @@ def load_cube(path: str | Path) -> tuple:
         data = data[np.newaxis, :]
     elif data.ndim != 3:
         raise ValueError(
-                f"[io_utils] Unexpected cube shape after squeeze: {data.shape} "
-                f"from {path}")
+            f"[io_utils] Unexpected cube shape after squeeze: {data.shape} from {path}"
+        )
 
     freq_hz, vel_kms = frequency_velocity(hdr, data.shape[0])
     return data, hdr, wcs_full, freq_hz, vel_kms
 
-#--- Flag report ---
+
+# Flag report
 def load_flag_report(paths) -> dict | None:
-    """
-    Load one or more CARACal flag-report JSON files.
+    """Load one or more CARACal flag-report JSON files.
 
     Parameters
     ----------
@@ -183,9 +178,9 @@ def load_flag_report(paths) -> dict | None:
 
     return combined if combined else None
 
+
 def flag_fraction_of(content) -> float | None:
-    """
-    Overall flagged fraction (0..1) from one CARACal flagging-summary JSON.
+    """Overall flagged fraction (0..1) from one CARACal flagging-summary JSON.
 
     Real CARACal reports look like::
 
@@ -235,6 +230,7 @@ def flag_fraction_of(content) -> float | None:
 
     # Generic fallback: shallowest flagged/fraction/frac value.
     from collections import deque
+
     queue = deque([content])
     while queue:
         node = queue.popleft()
@@ -243,7 +239,7 @@ def flag_fraction_of(content) -> float | None:
             if fr is not None:
                 try:
                     v = float(fr)
-                    return v / 100.0 if v > 1.0 else v   # tolerate percentages
+                    return v / 100.0 if v > 1.0 else v  # tolerate percentages
                 except (ValueError, TypeError):
                     pass
             queue.extend(node.values())
@@ -252,17 +248,15 @@ def flag_fraction_of(content) -> float | None:
     return None
 
 
-#--- Header utilities ---
+# Header utilities
 def pixel_scale_asec(hdr: fits.Header) -> float:
-    """
-    Return the pixel scale in arcseconds (absolute value of CDELT1/2).
-    """
-    cdelt1 = abs(hdr.get("CDELT1", 6.0 / 3600.0))   #   degrees/pixel
+    """Return the pixel scale in arcseconds (absolute value of CDELT1/2)."""
+    cdelt1 = abs(hdr.get("CDELT1", 6.0 / 3600.0))  #   degrees/pixel
     return cdelt1 * 3600.0
 
+
 def channel_width_hz(hdr: fits.Header) -> float:
-    """
-    Extract channel width in Hz from the FITS header.
+    """Extract channel width in Hz from the FITS header.
     Handles both FREQ and VELO/VOPT/VRAD axes.
     """
     spec_ax, spec_type = _find_spectral_axis(hdr)
@@ -274,7 +268,7 @@ def channel_width_hz(hdr: fits.Header) -> float:
         return 26367.19
 
     if spec_type == "FREQ":
-        return cdelt   # already in Hz
+        return cdelt  # already in Hz
 
     # Velocity axis: convert dv to df
     # df = f0 * dv / c  (radio convention)
@@ -283,5 +277,5 @@ def channel_width_hz(hdr: fits.Header) -> float:
     if cunit == "km/s":
         dv_kms = cdelt
     else:
-        dv_kms = cdelt / 1e3   # m/s -> km/s
+        dv_kms = cdelt / 1e3  # m/s -> km/s
     return rest_freq * dv_kms / C_KMS

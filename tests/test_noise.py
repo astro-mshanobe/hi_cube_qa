@@ -1,4 +1,5 @@
 """noise: robust estimators, radiometer prediction, HI sensitivity and the Good/Warn/Bad rules."""
+
 import warnings
 
 import numpy as np
@@ -50,7 +51,7 @@ def test_kurtosis_expected_standard_error_is_sqrt_24_over_n_and_n_is_floored_at_
 
 
 def test_classify_kurtosis_labels_by_standard_errors_from_three():
-    se = nz.kurtosis_expected_se(24.0)                    # = 1
+    se = nz.kurtosis_expected_se(24.0)  # = 1
     kurt = np.array([3.0, 3.0 + 4.9 * se, 3.0 + 5.1 * se, 3.0 - 9.9 * se, 3.0 + 10.1 * se, np.nan])
     q = nz.classify_kurtosis(kurt, 24.0)
     assert list(q) == [nz.GOOD, nz.GOOD, nz.WARN, nz.WARN, nz.BAD, nz.GOOD]
@@ -78,8 +79,12 @@ def test_boresight_rms_ignores_a_bright_source_in_the_box_and_reports_the_noise(
 def test_boresight_rms_clipping_removes_a_bright_contaminated_fraction_of_the_box():
     d = RNG.normal(0.0, 1.0, (4, 100, 100))
     d[:, RNG.random((100, 100)) < 0.2] += 6.0
-    assert np.all(np.abs(nz.boresight_rms(d, {"CRPIX1": 51, "CRPIX2": 51}, box_size=100) - 1.0) < 0.15)
-    assert np.all(nz.mad_rms_planes(d)[1] > 1.2)                  # the plain MAD over the same pixels is biased high
+    assert np.all(
+        np.abs(nz.boresight_rms(d, {"CRPIX1": 51, "CRPIX2": 51}, box_size=100) - 1.0) < 0.15
+    )
+    assert np.all(
+        nz.mad_rms_planes(d)[1] > 1.2
+    )  # the plain MAD over the same pixels is biased high
 
 
 def test_boresight_rms_box_is_clipped_at_the_cube_edge_and_centre_can_be_given():
@@ -88,7 +93,7 @@ def test_boresight_rms_box_is_clipped_at_the_cube_edge_and_centre_can_be_given()
 
 
 def test_sefd_from_tsys_is_2kT_over_eta_times_geometric_area():
-    area = np.pi * 6.75 ** 2
+    area = np.pi * 6.75**2
     expect = 2 * 1.380649e-23 * 25.0 / (0.8 * area) * 1e26
     assert abs(nz.sefd_from_tsys(25.0, 0.8) - expect) < 1e-9 * expect
     assert 590 < nz.sefd_from_tsys(25.0, 0.8) < 615
@@ -104,8 +109,15 @@ def test_sefd_spectrum_takes_the_shape_of_the_curve_and_the_scale_of_tsys_at_ban
     f = np.linspace(1.1e9, 1.5e9, 9)
     curve = [(1000.0, 400.0), (1300.0, 200.0), (1600.0, 400.0)]
     s = nz.sefd_spectrum(f, tsys=25.0, eta=0.8, curve=curve)
-    assert abs(s[4] - nz.sefd_from_tsys(25.0, 0.8)) < 1e-6                     # band centre
-    assert abs(s[0] / s[4] - np.interp(1.1e9, [1e9, 1.3e9, 1.6e9], [400, 200, 400]) / np.interp(1.3e9, [1e9, 1.3e9, 1.6e9], [400, 200, 400])) < 1e-9
+    assert abs(s[4] - nz.sefd_from_tsys(25.0, 0.8)) < 1e-6  # band centre
+    assert (
+        abs(
+            s[0] / s[4]
+            - np.interp(1.1e9, [1e9, 1.3e9, 1.6e9], [400, 200, 400])
+            / np.interp(1.3e9, [1e9, 1.3e9, 1.6e9], [400, 200, 400])
+        )
+        < 1e-9
+    )
 
 
 def test_sefd_spectrum_sorts_an_unsorted_curve():
@@ -116,15 +128,33 @@ def test_sefd_spectrum_sorts_an_unsorted_curve():
 
 
 def test_theoretical_noise_follows_the_radiometer_equation():
-    s = nz.theoretical_noise(sefd=400.0, n_ant=60, t_total_hr=1.0, df_hz=26367.19, n_pol=2, nfac=1.0)
+    s = nz.theoretical_noise(
+        sefd=400.0, n_ant=60, t_total_hr=1.0, df_hz=26367.19, n_pol=2, nfac=1.0
+    )
     n_bl = 60 * 59 / 2
     assert abs(s - 400.0 / np.sqrt(n_bl * 3600.0 * 26367.19 * 2)) < 1e-15
-    assert abs(nz.theoretical_noise(sefd=400.0, t_total_hr=4.0) / nz.theoretical_noise(sefd=400.0, t_total_hr=1.0) - 0.5) < 1e-12
-    assert abs(nz.theoretical_noise(sefd=400.0, nfac=1.7) / nz.theoretical_noise(sefd=400.0) - 1.7) < 1e-12
+    assert (
+        abs(
+            nz.theoretical_noise(sefd=400.0, t_total_hr=4.0)
+            / nz.theoretical_noise(sefd=400.0, t_total_hr=1.0)
+            - 0.5
+        )
+        < 1e-12
+    )
+    assert (
+        abs(nz.theoretical_noise(sefd=400.0, nfac=1.7) / nz.theoretical_noise(sefd=400.0) - 1.7)
+        < 1e-12
+    )
 
 
 def test_theoretical_noise_without_sefd_uses_tsys_and_eta():
-    assert abs(nz.theoretical_noise(tsys=25.0, eta=0.8) - nz.theoretical_noise(sefd=nz.sefd_from_tsys(25.0, 0.8))) < 1e-15
+    assert (
+        abs(
+            nz.theoretical_noise(tsys=25.0, eta=0.8)
+            - nz.theoretical_noise(sefd=nz.sefd_from_tsys(25.0, 0.8))
+        )
+        < 1e-15
+    )
 
 
 def test_theoretical_noise_spectrum_with_a_flat_sefd_equals_the_scalar_value():
@@ -137,14 +167,14 @@ def test_flagged_fraction_shortens_the_effective_time_per_channel():
     f = np.full(3, 1.35e9)
     flag = np.array([0.0, 0.75, 0.9999])
     s = nz.theoretical_noise_spectrum(f, sefd=420.0, flag_fraction=flag)
-    assert abs(s[1] / s[0] - 2.0) < 1e-9                    # 1 / sqrt(0.25)
-    assert np.isfinite(s[2]) and s[2] < 1e3 * s[0]          # fraction is capped below 1
+    assert abs(s[1] / s[0] - 2.0) < 1e-9  # 1 / sqrt(0.25)
+    assert np.isfinite(s[2]) and s[2] < 1e3 * s[0]  # fraction is capped below 1
     full = nz.theoretical_noise_spectrum(f[:1], sefd=420.0, flag_fraction=1.0)[0]
-    assert abs(full / s[0] - np.sqrt(1.0 / 0.001)) < 1e-6                # fully flagged: capped at 99.9 %
+    assert abs(full / s[0] - np.sqrt(1.0 / 0.001)) < 1e-6  # fully flagged: capped at 99.9 %
 
 
 def test_brightness_temperature_matches_the_rayleigh_jeans_beam_relation():
-    tb = nz.brightness_temperature(1e-3, 1.0e9, 10.0, 10.0)           # 1 mJy/beam, 1 GHz, 10"x10"
+    tb = nz.brightness_temperature(1e-3, 1.0e9, 10.0, 10.0)  # 1 mJy/beam, 1 GHz, 10"x10"
     assert abs(tb - 1.222e3 * 1.0 / 100.0) < 1e-9
     assert abs(nz.brightness_temperature(1e-3, 2.0e9, 10.0, 10.0) - tb / 4.0) < 1e-9
     assert np.isnan(nz.brightness_temperature(1e-3, 1.4e9, 0.0, 10.0))
@@ -157,7 +187,13 @@ def test_nhi_sensitivity_scales_with_the_square_root_of_the_line_width():
     assert abs(r["nhi_chan_cm2"] / (1.823e18 * 3.0 * tb * 5.0) - 1.0) < 1e-12
     assert abs(r["nhi_dv_cm2"] / r["nhi_chan_cm2"] - np.sqrt(20.0 / 5.0)) < 1e-12
     neg = nz.nhi_sensitivity(1e-4, 1.4e9, 20.0, 15.0, chan_dv_kms=-5.0)
-    assert abs(neg["nhi_dv_cm2"] - nz.nhi_sensitivity(1e-4, 1.4e9, 20.0, 15.0, chan_dv_kms=5.0)["nhi_dv_cm2"]) < 1e-3
+    assert (
+        abs(
+            neg["nhi_dv_cm2"]
+            - nz.nhi_sensitivity(1e-4, 1.4e9, 20.0, 15.0, chan_dv_kms=5.0)["nhi_dv_cm2"]
+        )
+        < 1e-3
+    )
 
 
 def test_nhi_sensitivity_is_nan_without_a_beam():
@@ -168,7 +204,9 @@ def test_nhi_sensitivity_is_nan_without_a_beam():
 def test_running_median_rms_is_centred_truncated_at_the_edges_and_skips_nans():
     r = np.array([1.0, 2.0, 100.0, 4.0, 5.0, np.nan, 7.0])
     out = nz.running_median_rms(r, window=2)
-    assert out[2] == 4.0 and out[0] == 1.5 and out[5] == 6.0                   # window [5, nan, 7] -> median of 5 and 7
+    assert (
+        out[2] == 4.0 and out[0] == 1.5 and out[5] == 6.0
+    )  # window [5, nan, 7] -> median of 5 and 7
 
 
 def test_cumulative_rms_is_the_median_from_channel_zero():
@@ -184,9 +222,15 @@ def test_classify_channels_uses_strict_factors_against_the_theory():
 
 def test_classify_channels_accepts_a_per_channel_theory_and_falls_back_to_the_median():
     rms = np.array([1.0, 1.0, 1.0])
-    assert list(nz.classify_channels(rms, np.array([1.0, 0.5, 0.2]))) == [nz.GOOD, nz.WARN, nz.BAD]      # ratios 1, 2, 5
+    assert list(nz.classify_channels(rms, np.array([1.0, 0.5, 0.2]))) == [
+        nz.GOOD,
+        nz.WARN,
+        nz.BAD,
+    ]  # ratios 1, 2, 5
     assert list(nz.classify_channels(np.array([1.0, 1.0, 5.0]), None)) == [nz.GOOD, nz.GOOD, nz.BAD]
-    assert list(nz.classify_channels(rms, np.array([1.0, 1.0]))) == [nz.GOOD] * 3            # wrong length -> median
+    assert (
+        list(nz.classify_channels(rms, np.array([1.0, 1.0]))) == [nz.GOOD] * 3
+    )  # wrong length -> median
 
 
 def _summary(n_bad, n_warn, n_good, rms_good=1.0, theory=1.0):
@@ -201,8 +245,8 @@ def test_channel_summary_overall_quality_rules():
     assert _summary(5, 0, 95)["overall_quality"] == nz.WARN
     assert _summary(0, 20, 80)["overall_quality"] == nz.WARN
     assert _summary(15, 0, 85)["overall_quality"] == nz.BAD
-    assert _summary(0, 0, 100, rms_good=1.6)["overall_quality"] == nz.WARN                 # ratio > 1.5
-    assert _summary(0, 0, 100, rms_good=3.1)["overall_quality"] == nz.BAD                  # ratio > 3
+    assert _summary(0, 0, 100, rms_good=1.6)["overall_quality"] == nz.WARN  # ratio > 1.5
+    assert _summary(0, 0, 100, rms_good=3.1)["overall_quality"] == nz.BAD  # ratio > 3
 
 
 def test_channel_summary_reports_milli_units_counts_and_the_good_channel_median():
@@ -215,4 +259,6 @@ def test_channel_summary_reports_milli_units_counts_and_the_good_channel_median(
 def test_channel_summary_falls_back_to_all_finite_channels_when_none_is_good():
     q = np.array([nz.BAD, nz.BAD], dtype=object)
     s = nz.channel_summary(np.array([2.0, 4.0]), q, None)
-    assert s["median_rms_mjy"] == 3000.0 and s["rms_to_theory"] is None and s["theory_rms_mjy"] is None
+    assert (
+        s["median_rms_mjy"] == 3000.0 and s["rms_to_theory"] is None and s["theory_rms_mjy"] is None
+    )

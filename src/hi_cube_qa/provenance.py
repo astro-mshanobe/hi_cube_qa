@@ -1,31 +1,28 @@
+"""Read imaging provenance from FITS headers and derive the
+weighting noise penalty (nfac) automatically.
+
+WSClean records its settings in the FITS header (and HISTORY). We read the
+Briggs robust value, niter, threshold, restoring beam, and basic observation
+metadata so the report can stamp how the cube was made - and so nfac can be
+set from the actual weighting rather than by hand.
+"""
+
 from __future__ import annotations
 
 import numpy as np
-
-##############################################################################
-#
-#  provenance.py: read imaging provenance from FITS headers and derive the
-#  weighting noise penalty (nfac) automatically.
-#
-#  WSClean records its settings in the FITS header (and HISTORY). We read the
-#  Briggs robust value, niter, threshold, restoring beam, and basic observation
-#  metadata so the report can stamp how the cube was made -- and so nfac can be
-#  set from the actual weighting rather than by hand.
-#
-##############################################################################
 
 # Approximate natural-relative noise penalty for MeerKAT Briggs weighting.
 # Natural = 1.0; uniform ~ 1.4. Robust interpolates. These are typical values;
 # the exact penalty depends on the uv-coverage of each track.
 _ROBUST_NFAC = [
-        (-2.0, 1.40),   # ~ uniform
-        (-1.0, 1.35),
-        (-0.5, 1.20),
-        ( 0.0, 1.10),
-        ( 0.5, 1.04),
-        ( 1.0, 1.02),
-        ( 2.0, 1.00),   # ~ natural
-        ]
+    (-2.0, 1.40),  # ~ uniform
+    (-1.0, 1.35),
+    (-0.5, 1.20),
+    (0.0, 1.10),
+    (0.5, 1.04),
+    (1.0, 1.02),
+    (2.0, 1.00),  # ~ natural
+]
 
 
 def nfac_from_robust(robust: float | None) -> float | None:
@@ -40,16 +37,16 @@ def nfac_from_robust(robust: float | None) -> float | None:
 def _history_text(hdr) -> str:
     try:
         return "\n".join(str(c) for c in hdr.get("HISTORY", []))
-    except Exception:                                               # noqa: BLE001
+    except Exception:
         return ""
 
 
 def _find_robust(hdr) -> float | None:
-    """
-    Find the Briggs robust value. WSClean may store it as a keyword
+    """Find the Briggs robust value. WSClean may store it as a keyword
     (WSCWEIGH = 'Briggs'(-0.5)) or only in the HISTORY (-weight briggs -0.5).
     """
     import re
+
     # Keyword form, e.g. WSCWEIGH = 'Briggs'(-0.5) or 'briggs -0.5'
     for key in ("WSCWEIGH", "WEIGHT", "WTSCHEME"):
         v = hdr.get(key)
@@ -78,6 +75,7 @@ def _find_robust(hdr) -> float | None:
 
 def _find_int(hdr, keys, hist_pat) -> int | None:
     import re
+
     for k in keys:
         v = hdr.get(k)
         if v is not None:
@@ -95,15 +93,14 @@ def _find_int(hdr, keys, hist_pat) -> int | None:
 
 
 def read_provenance(hdr, beam_diag: dict | None = None) -> dict:
-    """
-    Extract imaging/observation provenance from a FITS header.
+    """Extract imaging/observation provenance from a FITS header.
 
     Returns a dict of human-readable strings/values (None where unknown):
         telescope, object, date_obs, origin, bunit,
         robust, niter, threshold, restoring_beam, weight_raw
     """
     robust = _find_robust(hdr)
-    niter  = _find_int(hdr, ("WSCNITER", "NITER"), r"-niter\s+(\d+)")
+    niter = _find_int(hdr, ("WSCNITER", "NITER"), r"-niter\s+(\d+)")
 
     threshold = None
     for k in ("WSCTHRES", "WSCThreshold", "THRESH"):
@@ -117,27 +114,28 @@ def read_provenance(hdr, beam_diag: dict | None = None) -> dict:
 
     restoring = None
     if beam_diag and beam_diag.get("available"):
-        restoring = (f"{beam_diag['median_bmaj_asec']:.2f}\" x "
-                     f"{beam_diag['median_bmin_asec']:.2f}\", "
-                     f"PA {beam_diag['median_bpa_deg']:.1f} deg")
+        restoring = (
+            f'{beam_diag["median_bmaj_asec"]:.2f}" x '
+            f'{beam_diag["median_bmin_asec"]:.2f}", '
+            f"PA {beam_diag['median_bpa_deg']:.1f} deg"
+        )
 
     return {
-            "telescope":      str(hdr.get("TELESCOP", "")).strip() or None,
-            "object":         str(hdr.get("OBJECT", "")).strip() or None,
-            "date_obs":       str(hdr.get("DATE-OBS", "")).strip() or None,
-            "origin":         str(hdr.get("ORIGIN", "")).strip() or None,
-            "bunit":          str(hdr.get("BUNIT", "")).strip() or None,
-            "robust":         robust,
-            "niter":          niter,
-            "threshold":      threshold,
-            "restoring_beam": restoring,
-            "weight_raw":     str(hdr.get("WSCWEIGH", "")).strip() or None,
-            }
+        "telescope": str(hdr.get("TELESCOP", "")).strip() or None,
+        "object": str(hdr.get("OBJECT", "")).strip() or None,
+        "date_obs": str(hdr.get("DATE-OBS", "")).strip() or None,
+        "origin": str(hdr.get("ORIGIN", "")).strip() or None,
+        "bunit": str(hdr.get("BUNIT", "")).strip() or None,
+        "robust": robust,
+        "niter": niter,
+        "threshold": threshold,
+        "restoring_beam": restoring,
+        "weight_raw": str(hdr.get("WSCWEIGH", "")).strip() or None,
+    }
 
 
 def resolve_nfac(cfg_nfac, hdr) -> tuple[float, str]:
-    """
-    Resolve the radiometer weighting penalty.
+    """Resolve the radiometer weighting penalty.
 
     If *cfg_nfac* is the string 'auto', derive it from the header robust value
     (falling back to 1.0 if not found). Otherwise use the configured number.

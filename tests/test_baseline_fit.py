@@ -43,9 +43,7 @@ def _series(kind, seed=0, n=200):
     """(x_kms, y, truth_poly_coeffs) for a flat/linear/quadratic baseline + outliers."""
     rng = np.random.default_rng(seed)
     x = np.linspace(-500.0, 500.0, n)
-    truth = {"flat": [0.0, 2e-4],
-             "linear": [3e-6, 2e-4],
-             "quad": [-8e-9, 1e-6, 2e-4]}[kind]
+    truth = {"flat": [0.0, 2e-4], "linear": [3e-6, 2e-4], "quad": [-8e-9, 1e-6, 2e-4]}[kind]
     y = np.polyval(truth, x) + SIGMA * rng.normal(size=n)
     y[OUT_IDX] += OUT_VAL
     return x, y, np.array(truth)
@@ -78,7 +76,7 @@ def test_edge_outliers_would_fake_a_slope_without_clipping():
     for seed in range(5):
         rng = np.random.default_rng(seed)
         x = np.linspace(-500.0, 500.0, 200)
-        y = 2e-4 + SIGMA * rng.normal(size=200)          # truly flat baseline
+        y = 2e-4 + SIGMA * rng.normal(size=200)  # truly flat baseline
         y[-4:] += 20 * SIGMA
         y[:2] -= 15 * SIGMA
         flat = np.full_like(x, 2e-4)
@@ -100,7 +98,7 @@ def test_returns_polyval_ordered_coefficients_and_boolean_mask():
     x, y, _ = _series("linear")
     c, keep = _robust_polyfit(x, y, 1)
     assert keep.dtype == bool and keep.shape == x.shape
-    assert len(c) == 2 and abs(c[0] - 3e-6) < 3e-7     # slope first, as np.polyval expects
+    assert len(c) == 2 and abs(c[0] - 3e-6) < 3e-7  # slope first, as np.polyval expects
 
 
 def test_clean_data_clips_almost_nothing():
@@ -108,8 +106,7 @@ def test_clean_data_clips_almost_nothing():
     x = np.linspace(-500, 500, 400)
     y = 1e-4 + SIGMA * rng.normal(size=400)
     _, keep = _robust_polyfit(x, y, 1)
-    assert (~keep).sum() <= 4        # 4-sigma clip of Gaussian noise: ~0.006% expected
-
+    assert (~keep).sum() <= 4  # 4-sigma clip of Gaussian noise: ~0.006% expected
 
 
 def test_clipping_uses_the_median_and_mad_so_a_contaminated_minority_does_not_hide_itself():
@@ -120,11 +117,13 @@ def test_clipping_uses_the_median_and_mad_so_a_contaminated_minority_does_not_hi
     y[bad] += 20.0
     _, keep = _robust_polyfit(x, y, 1)
     assert not keep[bad].any()
-    assert keep[~bad].all()                 # a mean-centred clip would also reject some clean points
+    assert keep[~bad].all()  # a mean-centred clip would also reject some clean points
 
 
 def test_a_clip_that_would_leave_too_few_points_for_the_degree_keeps_every_point():
     x = np.arange(4.0)
-    y = np.array([-50.7, -1.4, -0.2, -0.9])       # clipping the first point would leave 3, fewer than the 5 a cubic needs
+    y = np.array(
+        [-50.7, -1.4, -0.2, -0.9]
+    )  # clipping the first point would leave 3, fewer than the 5 a cubic needs
     _, keep = _robust_polyfit(x, y, 3)
     assert keep.all()

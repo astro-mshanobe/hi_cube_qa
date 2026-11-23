@@ -8,8 +8,7 @@
 #SBATCH --output=hi_cube_qa_%j.log
 #SBATCH --error=hi_cube_qa_%j.err
 
-# ─────────────────────────────────────────────────────────────────────
-# hi_cube_qa -- Slurm job for per-session HI cube QA
+# hi_cube_qa: Slurm job for per-session HI cube QA
 #
 # Usage:
 #   cd <the repository checkout>      # the script runs from the directory you submit from
@@ -23,7 +22,6 @@
 #     RAM is ~ a few cubes, not the whole session. 64 GB is comfortable.
 #   - Tip: run `python3 -m hi_cube_qa --config <cfg> --list` first to preview which
 #     pointings/cubes/products will be assessed (no heavy compute).
-# ─────────────────────────────────────────────────────────────────────
 
 CONFIG="${1:-qa_G23_all_sessions.yaml}"
 CONTAINER="/software/astro/containers/ASTRO-PY3.12-latest.sif"

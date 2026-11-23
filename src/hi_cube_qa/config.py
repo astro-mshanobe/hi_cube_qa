@@ -1,32 +1,37 @@
+"""YAML based configuration (session-oriented).
+
+A config describes one or more observation *sessions* (each a CARACal
+caracal/ root). Cubes are auto-discovered under each session; the user only
+chooses which imaging products to plot and (optionally) which pointings.
+One HTML report is produced per session.
+"""
+
 from __future__ import annotations
+
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-################################################################################
-#
-# config.py: YAML based configuration (session-oriented).
-#
-# A config describes one or more observation *sessions* (each a CARACal
-# caracal/ root). Cubes are auto-discovered under each session; the user only
-# chooses which imaging products to plot and (optionally) which pointings.
-# One HTML report is produced per session.
-#
-################################################################################
 DEFAULTS: dict[str, Any] = {
     "output": {
-        "dir":  "./qa_output",
+        "dir": "./qa_output",
         "html": True,
-        "csv":  True,
-        "log":  True,
+        "csv": True,
+        "log": True,
         # Also save key figures as standalone PNGs (needs the 'kaleido' package;
         # degrades gracefully with a warning if it is missing).
-        "save_png":    False,
-        "png_figures": ["summary", "rms_curve", "rms_vs_theory",
-                        "noise_overview", "bandspec", "nhi"],
-        "png_scale":   2,
+        "save_png": False,
+        "png_figures": [
+            "summary",
+            "rms_curve",
+            "rms_vs_theory",
+            "noise_overview",
+            "bandspec",
+            "nhi",
+        ],
+        "png_scale": 2,
     },
     # Plot resolution. By default the plotted spectra are decimated to at most
     # max_points per trace (keeps the HTML small; CSVs stay full resolution and
@@ -34,7 +39,7 @@ DEFAULTS: dict[str, Any] = {
     # --full-res on the command line) to draw every channel instead.
     "plots": {
         "full_resolution": False,
-        "max_points":      2000,
+        "max_points": 2000,
     },
     # List of sessions: [{root: <path to caracal/>}, ...]
     "sessions": [],
@@ -49,22 +54,22 @@ DEFAULTS: dict[str, Any] = {
     # finds nothing, discovery falls back to progressively broader globs.
     "flagreport_glob": "output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json",
     "radiometer": {
-        "sefd":    None,
-        "tsys":    25.0,
-        "eta":     0.80,
+        "sefd": None,
+        "tsys": 25.0,
+        "eta": 0.80,
         # Number of antennas: 'auto' reads the real count for this session
-        # from the CARACal obsinfo summary.json (ANT field) -- sessions can
+        # from the CARACal obsinfo summary.json (ANT field) - sessions can
         # differ if antennas were offline for maintenance; falls back to
         # n_ant_fallback if unavailable. Or set a fixed number directly.
-        "n_ant":          "auto",
+        "n_ant": "auto",
         "n_ant_fallback": 60,
         "t_total": 1.0,
-        "df":      26367.19,
-        "nfac":    1.0,            # number, or 'auto' (from header Briggs robust)
+        "df": 26367.19,
+        "nfac": 1.0,  # number, or 'auto' (from header Briggs robust)
         # Frequency dependence of the SEFD: 'default' (built-in approximate
         # MeerKAT L-band curve), 'flat' (use tsys/eta only), or a list of
         # [freq_MHz, sefd_Jy] points to interpolate.
-        "sefd_curve":    "default",
+        "sefd_curve": "default",
         # Effective flagged fraction folded into the theory (reduces t_eff):
         # 'auto' (from the flag report), a number in [0,1), or null (=0).
         "flag_fraction": "auto",
@@ -74,41 +79,41 @@ DEFAULTS: dict[str, Any] = {
     },
     # HI column-density sensitivity reporting.
     "sensitivity": {
-        "nhi_dv_kms": 20.0,       # line width over which to quote 3-sigma N_HI
-        "nsigma":     3.0,
+        "nhi_dv_kms": 20.0,  # line width over which to quote 3-sigma N_HI
+        "nsigma": 3.0,
     },
     # Continuum-residual diagnostic (persistence map).
     "continuum": {
-        "sigma": 3.0,             # per-channel threshold for the persistence map
+        "sigma": 3.0,  # per-channel threshold for the persistence map
     },
     # Streaming reducer.
     "reduce": {
-        "chunk": 64,              # channels read/processed per block
-        "maps":  True,            # render 2-D noise + continuum maps
+        "chunk": 64,  # channels read/processed per block
+        "maps": True,  # render 2-D noise + continuum maps
     },
     "thumbnails": {
         # Channel selectors for the thumbnail strip: any of "rms", "snr".
         "selectors": ["rms", "snr"],
     },
     "boresight": {
-        "enable":          True,
-        "box_size":        100,
-        "centre_pix":      None,
-        "sigma_clip":      3.0,
+        "enable": True,
+        "box_size": 100,
+        "centre_pix": None,
+        "sigma_clip": 3.0,
         "clip_iterations": 3,
     },
     "thresholds": {
-        "rms_warn_factor":   1.5,
-        "rms_bad_factor":    3.0,
+        "rms_warn_factor": 1.5,
+        "rms_bad_factor": 3.0,
         "bad_chan_warn_pct": 5.0,
-        "bad_chan_bad_pct":  15.0,
+        "bad_chan_bad_pct": 15.0,
         "beam_scatter_warn": 0.5,
-        "flag_warn_pct":     10.0,
-        "flag_bad_pct":      30.0,
+        "flag_warn_pct": 10.0,
+        "flag_bad_pct": 30.0,
         # Kurtosis (non-Gaussianity): channel flagged when |kurtosis-3| exceeds
         # this many standard errors of the estimator (beam-corrected effective N).
         "kurtosis_warn_sigma": 5.0,
-        "kurtosis_bad_sigma":  10.0,
+        "kurtosis_bad_sigma": 10.0,
     },
 }
 
@@ -124,9 +129,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Public API
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 class QAConfig:
     """Parsed and validated QA configuration."""
 
@@ -204,14 +207,11 @@ class QAConfig:
         return d / f"{obsid}{suffix}"
 
     def __repr__(self) -> str:
-        return (f"QAConfig(sessions={len(self.sessions)}, "
-                f"products={self.products!r})")
+        return f"QAConfig(sessions={len(self.sessions)}, products={self.products!r})"
 
 
 def load_config(yaml_path: str | Path) -> QAConfig:
-    """
-    Load a YAML config file, merge with defaults, validate, and return a QAConfig.
-    """
+    """Load a YAML config file, merge with defaults, validate, and return a QAConfig."""
     yaml_path = Path(yaml_path)
     if not yaml_path.exists():
         raise FileNotFoundError(f"Config file not found: {yaml_path}")
@@ -221,7 +221,7 @@ def load_config(yaml_path: str | Path) -> QAConfig:
 
     cfg = _deep_merge(DEFAULTS, user_cfg)
 
-    #--- validate sessions ---
+    # validate sessions
     if not cfg["sessions"]:
         raise ValueError("Config must define at least one entry under 'sessions:'")
 
@@ -229,10 +229,9 @@ def load_config(yaml_path: str | Path) -> QAConfig:
         if "root" not in sess:
             raise ValueError(f"sessions[{i}] is missing required key 'root'")
         if not Path(sess["root"]).is_dir():
-            raise FileNotFoundError(
-                    f"sessions[{i}] root is not a directory: {sess['root']}")
+            raise FileNotFoundError(f"sessions[{i}] root is not a directory: {sess['root']}")
 
-    #--- validate products ---
+    # validate products
     prods = cfg["products"]
     if isinstance(prods, str):
         if prods.lower() != "all":
@@ -240,21 +239,20 @@ def load_config(yaml_path: str | Path) -> QAConfig:
     elif not isinstance(prods, list) or not prods:
         raise ValueError("products must be a non-empty list or 'all'")
 
-    #--- validate cube filter ---
+    # validate cube filter
     cubes = cfg.get("cubes")
     if cubes is not None and not (
-            (isinstance(cubes, str) and cubes.lower() == "all")
-            or isinstance(cubes, list)):
+        (isinstance(cubes, str) and cubes.lower() == "all") or isinstance(cubes, list)
+    ):
         raise ValueError("cubes must be null, 'all', or a list (e.g. [cube_1] or [1])")
 
-    #--- validate thumbnail selectors ---
+    # validate thumbnail selectors
     sel = cfg["thumbnails"].get("selectors", [])
     valid_sel = {"rms", "snr"}
     if not sel or any(s not in valid_sel for s in sel):
-        raise ValueError("thumbnails.selectors must be a non-empty subset of "
-                         "['rms', 'snr']")
+        raise ValueError("thumbnails.selectors must be a non-empty subset of ['rms', 'snr']")
 
-    #--- validate radiometer equation ---
+    # validate radiometer equation
     rad = cfg["radiometer"]
     n_ant_is_auto = isinstance(rad["n_ant"], str) and rad["n_ant"].strip().lower() == "auto"
     if not n_ant_is_auto and rad["n_ant"] < 2:
@@ -278,7 +276,6 @@ def write_example_config(path: str | Path = "qa_session_example.yaml") -> None:
     """Write a fully-commented example session config to *path*."""
     example = """\
 # hi_cube_qa - example session configuration
-# ------------------------------------------
 # One HTML report is produced per session. Cubes are auto-discovered under each
 # session root; you only choose which products to plot.
 

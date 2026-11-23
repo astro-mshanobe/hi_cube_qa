@@ -9,16 +9,16 @@ known truth, against the standard implementations: astropy.stats.mad_std
 import numpy as np
 from astropy.stats import mad_std
 from scipy import stats
+from synth import make_cube
 
 from hi_cube_qa import noise
-from synth import make_cube
 
 
 def _cube_with_nans_and_outliers(dtype=np.float64):
     cube, sigma, _ = make_cube(dtype=dtype)
-    cube[3, :10, :10] = np.nan          # partly flagged plane
-    cube[7] = np.nan                    # fully flagged plane
-    cube[5, 40, 40] = 1.0               # bright pixel (1000 sigma)
+    cube[3, :10, :10] = np.nan  # partly flagged plane
+    cube[7] = np.nan  # fully flagged plane
+    cube[5, 40, 40] = 1.0  # bright pixel (1000 sigma)
     return cube, sigma
 
 
@@ -71,13 +71,13 @@ def test_mad_rms_robust_to_outliers_where_std_is_not():
         cube[c].reshape(-1)[idx] += 100.0 * sigma[c]
     _, sig = noise.mad_rms_planes(cube)
     plain_std = cube.reshape(cube.shape[0], -1).std(axis=1)
-    assert np.max(np.abs(sig / sigma - 1.0)) < 0.10      # MAD barely moves
-    assert np.min(plain_std / sigma) > 3.0               # plain std is wrecked
+    assert np.max(np.abs(sig / sigma - 1.0)) < 0.10  # MAD barely moves
+    assert np.min(plain_std / sigma) > 3.0  # plain std is wrecked
 
 
 def test_kurtosis_planes_matches_scipy():
     cube, _ = _cube_with_nans_and_outliers()
-    cube[9] = np.random.default_rng(3).laplace(size=cube[9].shape)   # non-Gaussian plane
+    cube[9] = np.random.default_rng(3).laplace(size=cube[9].shape)  # non-Gaussian plane
     k = noise.kurtosis_planes(cube)
     for i, plane in enumerate(cube):
         vals = plane[np.isfinite(plane)]
@@ -98,7 +98,7 @@ def test_kurtosis_gaussian_cube_is_near_3_and_classified_good():
 
 def test_kurtosis_heavy_tails_are_flagged_bad():
     rng = np.random.default_rng(8)
-    cube = rng.laplace(size=(6, 96, 96))                 # Pearson kurtosis = 6
+    cube = rng.laplace(size=(6, 96, 96))  # Pearson kurtosis = 6
     k = noise.kurtosis_planes(cube)
     assert np.all(np.abs(k - 6.0) < 0.4)
     assert np.all(noise.classify_kurtosis(k, 96 * 96) == noise.BAD)
@@ -122,8 +122,7 @@ def test_kurtosis_z_agrees_with_scipy_kurtosistest_for_gaussian_data():
 
 
 def test_classify_kurtosis_thresholds():
-    n_eff = 2400                                   # SE = sqrt(24/2400) = 0.1
-    kurt = np.array([3.0, 3.2, 3.7, 4.2, 2.3])     # 0, 2, 7, 12, -7 sigma
+    n_eff = 2400  # SE = sqrt(24/2400) = 0.1
+    kurt = np.array([3.0, 3.2, 3.7, 4.2, 2.3])  # 0, 2, 7, 12, -7 sigma
     q = noise.classify_kurtosis(kurt, n_eff, warn_sigma=5.0, bad_sigma=10.0)
     assert list(q) == [noise.GOOD, noise.GOOD, noise.WARN, noise.BAD, noise.WARN]
-

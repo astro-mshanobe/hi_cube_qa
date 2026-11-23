@@ -1,4 +1,5 @@
 """helpers: the stand-ins for pytest.raises and tmp_path used by the other tests."""
+
 from helpers import raises, uses_tmp_path
 
 
@@ -19,6 +20,7 @@ def test_raises_fails_when_nothing_is_raised():
     def block():
         with raises(ValueError):
             pass
+
     assert "was not raised" in _assertion_message(block)
 
 
@@ -26,6 +28,7 @@ def test_raises_fails_when_the_message_does_not_match():
     def block():
         with raises(ValueError, match="expected text"):
             raise ValueError("something else")
+
     assert "does not match" in _assertion_message(block)
 
 

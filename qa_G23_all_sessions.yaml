@@ -1,5 +1,4 @@
 # hi_cube_qa - G23 all observation sessions
-# ------------------------------------------
 # One HTML report is produced per session, named <obsid>_qa_report.html.
 # Cubes are auto-discovered; only the products below are loaded/plotted.
 

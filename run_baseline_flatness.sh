@@ -8,15 +8,13 @@
 #SBATCH --output=baseline_flatness_%j.log
 #SBATCH --error=baseline_flatness_%j.err
 
-# ─────────────────────────────────────────────────────────────────────
-# baseline_flatness -- mosaicking-prep check: is the per-channel mean
+# baseline_flatness: mosaicking-prep check: is the per-channel mean
 # (baseline) flat across the band for every continuum-subtracted cube?
 #
 # Usage:
 #   cd <the repository checkout>      # the script runs from the directory you submit from
 #   sbatch run_baseline_flatness.sh                # uses qa_G23_all_sessions.yaml
 #   sbatch run_baseline_flatness.sh my_config.yaml
-# ─────────────────────────────────────────────────────────────────────
 
 CONFIG="${1:-qa_G23_all_sessions.yaml}"
 CONTAINER="/software/astro/containers/ASTRO-PY3.12-latest.sif"

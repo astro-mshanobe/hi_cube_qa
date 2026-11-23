@@ -1,4 +1,5 @@
 """End to end: a synthetic CARACal session with known noise goes through the command line entry point."""
+
 import contextlib
 import csv
 import io
@@ -6,11 +7,11 @@ import json
 import sys
 
 from astropy.io import fits
+from helpers import uses_tmp_path
+from synthetic import DF_HZ, make_session
 
 from hi_cube_qa import main as qa_main
 from hi_cube_qa import noise as nz
-from helpers import uses_tmp_path
-from synthetic import DF_HZ, make_session
 
 SIGMA_JY = 1e-3
 N_ANT = 8
@@ -29,7 +30,9 @@ def _run(tmp_path, *extra_args, bad_channel=None):
     if bad_channel is not None:
         _noisy_channel(car, *bad_channel)
     cfg = tmp_path / "qa.yaml"
-    cfg.write_text(f"sessions:\n  - root: {car}\noutput:\n  dir: {tmp_path / 'out'}\nradiometer:\n  t_total: {T_TOTAL_HR}\n")
+    cfg.write_text(
+        f"sessions:\n  - root: {car}\noutput:\n  dir: {tmp_path / 'out'}\nradiometer:\n  t_total: {T_TOTAL_HR}\n"
+    )
     argv, sys.argv = sys.argv, ["hi-cube-qa", "--config", str(cfg), *extra_args]
     try:
         with contextlib.redirect_stdout(io.StringIO()) as out:
@@ -52,35 +55,54 @@ def test_a_session_produces_the_report_the_tables_and_the_index(tmp_path):
     out, _ = _run(tmp_path)
     obsid = "1600000000_sdp_l0"
     names = {p.name for p in out.iterdir()}
-    assert {f"{obsid}_qa_report.html", f"{obsid}_channel_qa.csv", f"{obsid}_band_summary.csv", f"{obsid}_checklist.csv",
-            "qa_index.html", "qa_survey_summary.csv", "qa_survey_summary.json", "hi_cube_qa.log"} <= names
+    assert {
+        f"{obsid}_qa_report.html",
+        f"{obsid}_channel_qa.csv",
+        f"{obsid}_band_summary.csv",
+        f"{obsid}_checklist.csv",
+        "qa_index.html",
+        "qa_survey_summary.csv",
+        "qa_survey_summary.json",
+        "hi_cube_qa.log",
+    } <= names
     assert f"{obsid}_qa_report.html" in (out / "qa_index.html").read_text()
-    assert len(json.loads((out / "qa_survey_summary.json").read_text())) == 6              # 2 pointings x 3 products
+    assert (
+        len(json.loads((out / "qa_survey_summary.json").read_text())) == 6
+    )  # 2 pointings x 3 products
 
 
 @uses_tmp_path
-def test_the_measured_noise_matches_the_injected_sigma_and_the_theory_uses_the_session_antenna_count(tmp_path):
+def test_the_measured_noise_matches_the_injected_sigma_and_the_theory_uses_the_session_antenna_count(
+    tmp_path,
+):
     out, _ = _run(tmp_path)
     rows = _rows(out / "1600000000_sdp_l0_band_summary.csv")
     assert len(rows) == 6
     for row in rows:
         assert abs(float(row["median_rms_mjy_beam"]) - SIGMA_JY * 1e3) < 0.05 * SIGMA_JY * 1e3
         assert row["overall_quality"] == "Good" and row["n_channels"] == "16"
-    expected_mjy = nz.theoretical_noise(tsys=25.0, eta=0.80, n_ant=N_ANT, t_total_hr=T_TOTAL_HR, df_hz=DF_HZ) * 1e3
+    expected_mjy = (
+        nz.theoretical_noise(tsys=25.0, eta=0.80, n_ant=N_ANT, t_total_hr=T_TOTAL_HR, df_hz=DF_HZ)
+        * 1e3
+    )
     assert abs(float(rows[0]["theory_rms_mjy_beam"]) - expected_mjy) < 1e-3 * expected_mjy
 
 
 @uses_tmp_path
 def test_one_noisy_channel_is_flagged_bad_and_lowers_the_overall_grade(tmp_path):
-    out, _ = _run(tmp_path, bad_channel=(5, 10.0))                      # 10 mJy against a 2.9 mJy theory: ratio 3.4 > 3
+    out, _ = _run(tmp_path, bad_channel=(5, 10.0))  # 10 mJy against a 2.9 mJy theory: ratio 3.4 > 3
     rows = _rows(out / "1600000000_sdp_l0_channel_qa.csv")
     assert {int(r["channel"]) for r in rows if r["quality"] == "Bad"} == {5}
     assert {r["quality"] for r in rows if int(r["channel"]) != 5} == {"Good"}
-    assert {r["overall_quality"] for r in _rows(out / "1600000000_sdp_l0_band_summary.csv")} == {"Warn"}      # 1 of 16 = 6.25 % >= 5 %
+    assert {r["overall_quality"] for r in _rows(out / "1600000000_sdp_l0_band_summary.csv")} == {
+        "Warn"
+    }  # 1 of 16 = 6.25 % >= 5 %
 
 
 @uses_tmp_path
 def test_list_mode_prints_the_units_and_writes_nothing(tmp_path):
     out, text = _run(tmp_path, "--list")
-    assert "Session 1600000000_sdp_l0: 2 unit(s) across 2 pointing(s)" in text and "p01/cube_1" in text
+    assert (
+        "Session 1600000000_sdp_l0: 2 unit(s) across 2 pointing(s)" in text and "p01/cube_1" in text
+    )
     assert not out.exists()

@@ -1,8 +1,10 @@
 """wsclean_log: the antenna count from CARACal's obsinfo summary."""
+
 import json
 
-from hi_cube_qa import wsclean_log as wl
 from helpers import uses_tmp_path
+
+from hi_cube_qa import wsclean_log as wl
 
 
 def _summary(root, content):
@@ -14,7 +16,9 @@ def _summary(root, content):
 
 
 @uses_tmp_path
-def test_the_antenna_count_is_the_length_of_a_per_antenna_column_not_the_number_of_columns(tmp_path):
+def test_the_antenna_count_is_the_length_of_a_per_antenna_column_not_the_number_of_columns(
+    tmp_path,
+):
     cols = ("NAME", "STATION", "OFFSET", "POSITION", "DISH_DIAMETER", "MOUNT", "TYPE", "FLAG_ROW")
     _summary(tmp_path, {"ANT": {c: list(range(58)) for c in cols}})
     n, src = wl.read_n_ant(tmp_path)

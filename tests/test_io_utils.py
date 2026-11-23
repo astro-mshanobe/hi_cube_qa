@@ -1,13 +1,14 @@
 """io_utils: spectral-axis handling, channel width, flag-report parsing and cube loading."""
+
 import json
 import warnings
 
 import numpy as np
 from astropy.io import fits
+from helpers import uses_tmp_path
+from synthetic import DF_HZ, FREQ0_HZ, cube_header
 
 from hi_cube_qa import io_utils as io
-from helpers import raises, uses_tmp_path
-from synthetic import DF_HZ, FREQ0_HZ, cube_header, write_cube
 
 REST = io.HI_REST_FREQ_HZ
 
@@ -38,7 +39,14 @@ def test_radio_velocity_axis_in_metres_per_second_or_km_per_second():
 
 
 def test_optical_velocity_axis_is_converted_to_radio_velocity():
-    f, v = io.frequency_velocity(_hdr("VOPT", 3.0e7, 0.0, ), 5)
+    f, v = io.frequency_velocity(
+        _hdr(
+            "VOPT",
+            3.0e7,
+            0.0,
+        ),
+        5,
+    )
     z = 3.0e4 / io.C_KMS
     assert abs(f[0] - REST / (1 + z)) < 1e-3
     assert abs(v[0] - io.C_KMS * z / (1 + z)) < 1e-6
@@ -53,7 +61,12 @@ def test_a_missing_or_mismatched_spectral_axis_falls_back_to_a_dummy_grid_with_a
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         f, v = io.frequency_velocity(fits.Header(), 4)
-    assert len(f) == 4 and f[0] == 1.30e9 and f[-1] == 1.43e9 and any("dummy" in str(x.message) for x in w)
+    assert (
+        len(f) == 4
+        and f[0] == 1.30e9
+        and f[-1] == 1.43e9
+        and any("dummy" in str(x.message) for x in w)
+    )
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         f, _ = io.frequency_velocity(_hdr("FREQ", REST, -1e4, n=5), 7, quiet=True)
@@ -93,7 +106,12 @@ def test_flag_report_skips_missing_files_with_a_warning_and_returns_none_when_em
 
 
 def test_flag_fraction_from_a_caracal_report_sums_counts_over_the_correlations():
-    rep = {"Flag stats": [{"scans": {}}, {"corrs": {"0": {"sum": 10.0, "counts": 100.0}, "1": {"sum": 30.0, "counts": 100.0}}}]}
+    rep = {
+        "Flag stats": [
+            {"scans": {}},
+            {"corrs": {"0": {"sum": 10.0, "counts": 100.0}, "1": {"sum": 30.0, "counts": 100.0}}},
+        ]
+    }
     assert abs(io.flag_fraction_of(rep) - 0.2) < 1e-12
 
 
@@ -103,7 +121,12 @@ def test_flag_fraction_averages_plain_fractions_when_no_counts_are_given():
 
 
 def test_flag_fraction_prefers_corrs_over_other_categories():
-    rep = {"Flag stats": [{"antennas": {"a": {"sum": 90.0, "counts": 100.0}}}, {"corrs": {"0": {"sum": 10.0, "counts": 100.0}}}]}
+    rep = {
+        "Flag stats": [
+            {"antennas": {"a": {"sum": 90.0, "counts": 100.0}}},
+            {"corrs": {"0": {"sum": 10.0, "counts": 100.0}}},
+        ]
+    }
     assert abs(io.flag_fraction_of(rep) - 0.1) < 1e-12
 
 
