@@ -4,6 +4,9 @@ Quality assessment of MeerKAT HI cubes. For each observation session (one CARACa
 `caracal/` root) it finds the imaging cubes, measures noise, beam and continuum-residual
 diagnostics, and writes one interactive HTML report, CSV tables and a survey-wide summary.
 
+New to the tool? [docs/getting_started.md](docs/getting_started.md) walks through setting up an
+environment, cloning the repository and running it on a synthetic session and on your own data.
+
 ## Install
 
 Python 3.10 or newer; numpy, scipy, astropy, plotly, matplotlib and pyyaml.
@@ -14,9 +17,13 @@ pip install -e ".[png]"     # kaleido, only for output.save_png
 pip install -e ".[test]"    # pytest
 ```
 
-The minimum versions in `pyproject.toml` are loose and untested. Development used Python 3.10,
-numpy 1.26, scipy 1.15, astropy 5.3, plotly 5.24, matplotlib 3.8 and pyyaml 6.0. Without
-installing, use `PYTHONPATH=src python3 -m hi_cube_qa ...`.
+For conda, `conda env create -f environment.yml` creates an environment with the dependencies.
+
+The minimum versions in `pyproject.toml` are loose and untested. The test suite passes with Python 3.10
+and numpy 1.26, scipy 1.15, astropy 5.3, plotly 5.24, matplotlib 3.8, pyyaml 6.0, and in a fresh
+environment with Python 3.12 and the newest releases of November 2026 (numpy 2.5, scipy 1.18,
+astropy 8.0, plotly 7.1, matplotlib 3.11). Without installing, use
+`PYTHONPATH=src python3 -m hi_cube_qa ...`.
 
 ## Usage
 
