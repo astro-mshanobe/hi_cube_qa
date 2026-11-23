@@ -387,6 +387,23 @@ floor. The \code{image} cube, by contrast, contains restored source flux that
 can bias a naive RMS upward; it is still measured and displayed, but is not used
 as the noise yardstick.
 
+\subsection{Worked example: a deconvolution failure is visible only in the cleaned products}
+\label{sec:divergence_example}
+Comparing the products channel by channel separates problems in the data from problems
+introduced by deconvolution. In the October 2026 G23 processing, isolated channels of the
+second-pass (\textsc{SoFiA}-masked) \code{cube\_2} of several pointings had a \code{residual}
+RMS of $10^2$--$10^3$ times the normal level (for example $5.4$\,Jy against $0.97$\,mJy in one
+channel at $1362.0$\,MHz), while the \code{dirty} cube, which contains no deconvolution, and
+the first-pass \code{cube\_1} were normal in the same channels. A channel that is high in all
+products is a data problem (RFI, calibration); a channel that is high only in the cleaned
+products is a deconvolution failure. Here the cause was WSClean's automatic multiscale list
+reaching a scale as large as the image, which oscillates and grows inside the mask; capping the
+scales fixed it (Sect.~\ref{sec:noiseref} explains why the \code{residual} is the right cube to
+look at). This is why the default products include \code{residual}: with \code{dirty} and
+\code{image} alone the failure is easy to miss. The failure is also not always flagged by the
+deconvolver's own warnings, so the per-channel RMS, not the log, should decide whether a cube
+is usable.
+
 % ===========================================================================
 \section{Synthesised-beam diagnostics}\label{sec:beam}
 % ===========================================================================

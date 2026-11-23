@@ -186,9 +186,12 @@ above 30 %. Own choice; fixed in the code (the config keys `flag_warn_pct` and
 ### Baseline flatness (`hi-cube-qa-baseline`)
 
 A separate command for continuum-subtracted cubes (default pattern `imsub-line.fits`).
-It fits a polynomial (default degree 1) to the per-channel mean against velocity, after
-iterative clipping at 4 sigma (MAD-based, at most 3 iterations), and expresses the
-peak-to-peak amplitude of the fit in standard errors of the channel mean. The standard error
+It fits a polynomial (default degree 1) to the per-channel mean against velocity. Outlier
+channels are rejected with astropy's `FittingWithOutlierRemoval` (`sigma_clip` about the
+median, sigma from the MAD, 4 sigma, 3 iterations); the trend is then an ordinary
+least-squares fit to the retained channels. If rejection would leave fewer than degree + 2
+channels, none is rejected. The peak-to-peak amplitude of the fit is expressed in standard
+errors of the channel mean. The standard error
 is the per-channel MAD RMS divided by the square root of the number of beams in the image.
 Pass below 5, Warn below 10, Fail otherwise (`--warn-sigma`, `--bad-sigma`). Source: own
 choice for all of it; the 5 and 10 follow the kurtosis convention above.
@@ -211,7 +214,8 @@ choice for all of it; the 5 and 10 follow the kurtosis convention above.
   verified against Thompson, Moran and Swenson or another primary source (not available
   in this repository). In the stored `qa_output_repaired` run the median RMS/theory of the
   15 residual cubes is 0.64 (range 0.60 to 1.18), i.e. the noise is well below the prediction. Why has not
-  been established. Check the expression, the SEFD scale (default T_sys and eta give about 600 Jy,
+  been established; the noise also differs by a factor 2 to 3 between older and newer
+  sessions. Check the expression, the SEFD scale (default T_sys and eta give about 600 Jy,
   while the built-in curve itself lies between 405 and 660 Jy) and nfac before quoting RMS/theory
   numbers.
 - Default `tsys`, `eta`, the SEFD curve and the nfac table are unsourced (see above); set
@@ -227,11 +231,28 @@ choice for all of it; the 5 and 10 follow the kurtosis convention above.
 - The number of antennas read from `obsinfo` is the antenna table length, i.e. antennas
   present, not antennas that survived calibration and flagging.
 - Beam statistics include every channel whose beam keywords are finite, so channels with
-  a zero beam keyword are not excluded and enter the scatter and axial-ratio checks.
+  a zero beam keyword are not excluded and enter the scatter and axial-ratio checks. In the
+  G23 cubes this applies to 103 channels in the GPS band (1379.7 to 1382.4 MHz); excluding
+  them is a planned change that will alter reported numbers.
 - Spectral axes are handled for `FREQ`, `VELO`, `VRAD` (radio convention) and `VOPT`; other
   axis types fall back to a dummy frequency grid with a warning.
 - Only tested on synthetic cubes and with Python 3.10; the ILIFU container (Python 3.12)
   has not been tested.
+
+## Field notes (G23 data, October 2026)
+
+Observations from the processing of the G23 sessions; they are not derived or tested by
+this repository.
+
+- **Use `residual`, or compare against `dirty`, to catch deconvolution failures.** In
+  isolated channels of the second-pass (SoFiA-masked) `cube_2` of several pointings the
+  cleaned products had an RMS 100 to 6000 times too high, while `dirty` and the first-pass
+  `cube_1` were normal. A channel that is high in `dirty` too is a data problem. A worked
+  example is in the reference manual (`docs/`).
+- **Reuse by `hi_mosaic`.** `hi_mosaic/noise_table.py` imports `beam_stats`,
+  `frequency_velocity` and `mad_rms_planes` from the QA folder through a `--qa-dir` path that
+  assumes the old flat layout; with the package layout the modules live in `src/hi_cube_qa`
+  and are imported as `hi_cube_qa.beam` and so on.
 
 ## Tests
 
@@ -242,9 +263,18 @@ python -m pytest                      # with pytest installed
 ```
 
 The tests use synthetic cubes and CARACal-like session trees with known noise
-(`tests/synthetic.py`). They cover the noise estimators and radiometer model, the
-classification rules, discovery, configuration, spectral axis and beam handling, the
-baseline fit, and an end-to-end run through the command line.
+(`tests/synthetic.py`, `tests/synth.py`). They cover the noise estimators and radiometer
+model, the classification rules, discovery, configuration, spectral axis and beam handling,
+the baseline fit, and an end-to-end run through the command line. The robust RMS, the
+kurtosis and its standard error, the Doppler conversions and the baseline fit are also
+compared with astropy and scipy implementations and, for the baseline fit, with a frozen
+copy of the earlier hand-written clipping loop.
+
+On the cluster, inside the container:
+
+```sh
+PYTHONPATH=src singularity exec /software/astro/containers/ASTRO-PY3.12-latest.sif python3 tests/run_tests.py
+```
 
 ## Documentation
 
