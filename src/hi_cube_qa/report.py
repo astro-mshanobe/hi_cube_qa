@@ -22,6 +22,44 @@ COL_BAD   = "#C0392B"
 COL_GOOD  = "#27AE60"
 
 
+# Relabels the top (channel index) axis of a figure after a zoom or reset, so that
+# its ticks stay at round channel numbers within the visible velocity range.
+_CHANNEL_AXIS_SCRIPT = """
+(function () {
+  var gd = document.getElementById('{plot_id}');
+  var perAxis = 8;
+  function niceStep(span) {
+    var raw = Math.max(span / perAxis, 1);
+    var power = Math.pow(10, Math.floor(Math.log10(raw)));
+    var mult = [1, 2, 5, 10];
+    for (var i = 0; i < mult.length; i++) { if (mult[i] * power >= raw) { return mult[i] * power; } }
+    return 10 * power;
+  }
+  function refresh() {
+    var meta = gd.layout.meta;
+    if (!meta || !meta.chan_axes) { return; }
+    var update = {};
+    meta.chan_axes.forEach(function (a) {
+      var range = gd._fullLayout[a.ref].range;
+      var c0 = (range[0] - a.v0) / a.dv, c1 = (range[1] - a.v0) / a.dv;
+      var lo = Math.max(0, Math.ceil(Math.min(c0, c1))), hi = Math.min(a.n - 1, Math.floor(Math.max(c0, c1)));
+      var vals = [], text = [];
+      if (hi >= lo) {
+        var step = niceStep(hi - lo);
+        for (var c = Math.ceil(lo / step) * step; c <= hi; c += step) { vals.push(a.v0 + c * a.dv); text.push(String(c)); }
+      }
+      update[a.axis + '.tickvals'] = vals;
+      update[a.axis + '.ticktext'] = text;
+    });
+    Plotly.relayout(gd, update);
+  }
+  gd.on('plotly_relayout', function (event) {
+    if (Object.keys(event).some(function (k) { return /^xaxis\\d*\\.(range|autorange)/.test(k); })) { refresh(); }
+  });
+})();
+"""
+
+
 class _FigRenderer:
     """Render Plotly figures to HTML divs, injecting the CDN script only once."""
     def __init__(self):
@@ -35,6 +73,7 @@ class _FigRenderer:
                 include_plotlyjs=inc,
                 div_id=div_id,
                 config={"displayModeBar": True, "scrollZoom": True, "responsive": True},
+                post_script=_CHANNEL_AXIS_SCRIPT,
                 )
 
 

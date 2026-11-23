@@ -79,6 +79,81 @@ def _as_scalar_theory(theory) -> float | None:
 
 
 # ---------------------------------------------------------------------------
+#  Spectral axes: radio velocity at the bottom, channel index at the top
+# ---------------------------------------------------------------------------
+VEL_AXIS_TITLE = "Radio velocity (km/s)"
+CHAN_AXIS_TITLE = "Channel index"
+HOVER_CH = "Ch %{customdata} | v = %{x:.1f} km/s"
+_TOP_TICKS = 8
+_TOP_AXIS_PX = 45          # tick labels and title of the channel axis
+_TOP_MARGIN_PX = 65        # the same, plus a second legend row
+
+
+def _xy(vel_kms, chans, mask) -> dict:
+    """x (velocity) and customdata (channel index) for the channels selected by *mask*."""
+    return dict(x=np.asarray(vel_kms, dtype=float)[mask], customdata=chans[mask])
+
+
+def _nice_step(span: float) -> int:
+    """Tick step (1, 2 or 5 times a power of ten) giving about _TOP_TICKS ticks over *span* channels."""
+    raw = max(span / _TOP_TICKS, 1.0)
+    power = 10 ** int(np.floor(np.log10(raw)))
+    for mult in (1, 2, 5, 10):
+        if mult * power >= raw:
+            return int(mult * power)
+    return int(10 * power)
+
+
+def channel_ticks(nchan: int, lo: float = 0.0, hi: float | None = None) -> np.ndarray:
+    """Channel indices at which the top axis is labelled, between channels *lo* and *hi*."""
+    hi = nchan - 1 if hi is None else hi
+    lo, hi = max(0, int(np.ceil(lo))), min(nchan - 1, int(np.floor(hi)))
+    if hi < lo:
+        return np.array([], dtype=int)
+    step = _nice_step(hi - lo)
+    return np.arange(int(np.ceil(lo / step)) * step, hi + 1, step)
+
+
+def add_channel_axis(fig: go.Figure, vel_kms, n_xaxes: int = 1) -> None:
+    """
+    Label the velocity axis from below with VEL_AXIS_TITLE and add a channel-index
+    axis along the top of the first panel. The channel axis is tied to the velocity
+    axis (same range), carries ticks at round channel numbers, and is refreshed on
+    zoom by the script in report.py (it reads the figure's meta, which is only set
+    when velocity is linear in channel number).
+
+    *n_xaxes* is the number of x axes the figure already has (rows of a shared-x
+    subplot grid); the velocity title goes on the last one.
+    """
+    vel = np.asarray(vel_kms, dtype=float)
+    nchan = len(vel)
+    ticks = channel_ticks(nchan)
+    name = n_xaxes + 1
+    fig.update_layout({
+            f"xaxis{n_xaxes if n_xaxes > 1 else ''}": dict(title=VEL_AXIS_TITLE),
+            f"xaxis{name}": dict(
+                title=CHAN_AXIS_TITLE, overlaying="x", side="top", matches="x", anchor="y",
+                tickmode="array", tickvals=vel[ticks].tolist(), ticktext=[str(c) for c in ticks],
+                showgrid=False, zeroline=False),
+            })
+    fig.add_trace(go.Scatter(x=[float(vel[0]), float(vel[-1])], y=[None, None], xaxis=f"x{name}", yaxis="y",
+                             mode="markers", marker=dict(opacity=0), showlegend=False, hoverinfo="skip",
+                             name="channel axis"))
+    # room above the panel for the channel labels, with the legend moved clear of them
+    margin = fig.layout.margin
+    top, bottom, height = margin.t or 80, margin.b or 60, fig.layout.height or 450
+    fig.update_layout(margin=dict(t=top + _TOP_MARGIN_PX),
+                      height=height + _TOP_MARGIN_PX,
+                      title=dict(y=1.0, yref="container", yanchor="top", pad=dict(t=8)),
+                      legend=dict(y=1.0 + (_TOP_AXIS_PX + 8) / (height - top - bottom)))
+    step = float(vel[-1] - vel[0]) / (nchan - 1) if nchan > 1 else 1.0
+    if nchan > 1 and np.allclose(vel, vel[0] + step * np.arange(nchan), rtol=0, atol=1e-3 * abs(step)):
+        # the in-page refresh assumes velocity is linear in channel number
+        fig.update_layout(meta=dict(chan_axes=[dict(axis=f"xaxis{name}", ref="xaxis", v0=float(vel[0]),
+                                                    dv=step, n=int(nchan))]))
+
+
+# ---------------------------------------------------------------------------
 #  Per-channel RMS
 # ---------------------------------------------------------------------------
 def fig_rms_curve(freq_hz, vel_kms, rms_dict, theory=None) -> go.Figure:
@@ -93,25 +168,25 @@ def fig_rms_curve(freq_hz, vel_kms, rms_dict, theory=None) -> go.Figure:
         gk = good & keep; wk = warn & keep
 
         fig.add_trace(go.Scatter(
-            x=chans[keep], y=running_median_rms(rms, 20)[keep] * 1e3, mode="lines",
+            **_xy(vel_kms, chans, keep), y=running_median_rms(rms, 20)[keep] * 1e3, mode="lines",
             name=f"{label} running median",
             line=dict(color=col, width=2.5, dash="dash"), opacity=0.65,
-            hovertemplate="Ch %{x}<br>Running med = %{y:.3f} mJy/beam<extra></extra>"))
+            hovertemplate=HOVER_CH + "<br>Running med = %{y:.3f} mJy/beam<extra></extra>"))
         if gk.any():
             fig.add_trace(go.Scatter(
-                x=chans[gk], y=rms[gk] * 1e3, mode="lines", name=label,
+                **_xy(vel_kms, chans, gk), y=rms[gk] * 1e3, mode="lines", name=label,
                 line=dict(color=col, width=1.2),
-                hovertemplate="Ch %{x}<br>RMS = %{y:.3f} mJy/beam<extra></extra>"))
+                hovertemplate=HOVER_CH + "<br>RMS = %{y:.3f} mJy/beam<extra></extra>"))
         if wk.any():
             fig.add_trace(go.Scatter(
-                x=chans[wk], y=rms[wk] * 1e3, mode="markers", name=f"{label} Warn",
+                **_xy(vel_kms, chans, wk), y=rms[wk] * 1e3, mode="markers", name=f"{label} Warn",
                 marker=dict(color=COL_WARN, symbol="circle-open", size=5),
-                hovertemplate="Ch %{x} [Warn]<br>RMS = %{y:.3f} mJy/beam<extra></extra>"))
+                hovertemplate=HOVER_CH + " [Warn]<br>RMS = %{y:.3f} mJy/beam<extra></extra>"))
         if bad.any():
             fig.add_trace(go.Scatter(
-                x=chans[bad], y=rms[bad] * 1e3, mode="markers", name=f"{label} Bad",
+                **_xy(vel_kms, chans, bad), y=rms[bad] * 1e3, mode="markers", name=f"{label} Bad",
                 marker=dict(color=COL_BAD, symbol="x", size=7),
-                hovertemplate="Ch %{x} [Bad]<br>RMS = %{y:.3f} mJy/beam<extra></extra>"))
+                hovertemplate=HOVER_CH + " [Bad]<br>RMS = %{y:.3f} mJy/beam<extra></extra>"))
 
     if theory is not None:
         ta = np.asarray(theory, dtype=float)
@@ -122,28 +197,29 @@ def fig_rms_curve(freq_hz, vel_kms, rms_dict, theory=None) -> go.Figure:
         else:
             km = _keep_mask(len(ta))
             fig.add_trace(go.Scatter(
-                x=np.arange(len(ta))[km], y=ta[km] * 1e3, mode="lines",
+                **_xy(vel_kms, np.arange(len(ta)), km), y=ta[km] * 1e3, mode="lines",
                 name="theory (freq+flag aware)",
                 line=dict(color=COL_THEORY, width=1.8, dash="dash"),
-                hovertemplate="Ch %{x}<br>theory = %{y:.3f} mJy/beam<extra></extra>"))
+                hovertemplate=HOVER_CH + "<br>theory = %{y:.3f} mJy/beam<extra></extra>"))
     fig.update_layout(
             template=PLOTLY_TEMPLATE,
             title=dict(text="Per-channel RMS noise (colour = quality class)", font=dict(size=15)),
-            xaxis=dict(title="Channel index"), yaxis=dict(title="RMS noise (mJy/beam)"),
+            yaxis=dict(title="RMS noise (mJy/beam)"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             height=440, margin=dict(l=65, r=30, t=80, b=60))
+    add_channel_axis(fig, vel_kms)
     return fig
 
 
-def fig_cumulative_rms(freq_hz, rms_dict, theory=None) -> go.Figure:
+def fig_cumulative_rms(freq_hz, vel_kms, rms_dict, theory=None) -> go.Figure:
     fig = go.Figure()
     chans = np.arange(len(freq_hz))
     km    = _keep_mask(len(freq_hz))
     for label, (rms, col, _q) in rms_dict.items():
         fig.add_trace(go.Scatter(
-            x=chans[km], y=cumulative_rms(rms)[km] * 1e3, mode="lines", name=label,
+            **_xy(vel_kms, chans, km), y=cumulative_rms(rms)[km] * 1e3, mode="lines", name=label,
             line=dict(color=col, width=2.0),
-            hovertemplate="Ch %{x}<br>Cumulative median RMS = %{y:.3f} mJy/beam<extra></extra>"))
+            hovertemplate=HOVER_CH + "<br>Cumulative median RMS = %{y:.3f} mJy/beam<extra></extra>"))
     ts = _as_scalar_theory(theory)
     if ts is not None:
         fig.add_hline(y=ts * 1e3, line=dict(color=COL_THEORY, dash="dot", width=1.5),
@@ -152,9 +228,10 @@ def fig_cumulative_rms(freq_hz, rms_dict, theory=None) -> go.Figure:
     fig.update_layout(
             template=PLOTLY_TEMPLATE,
             title=dict(text="Cumulative median RMS (noise-floor convergence)", font=dict(size=15)),
-            xaxis=dict(title="Channel index"), yaxis=dict(title="Cumulative median RMS (mJy/beam)"),
+            yaxis=dict(title="Cumulative median RMS (mJy/beam)"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             height=380, margin=dict(l=65, r=30, t=80, b=60))
+    add_channel_axis(fig, vel_kms)
     return fig
 
 
@@ -177,7 +254,7 @@ def fig_rms_histogram(rms_dict) -> go.Figure:
     return fig
 
 
-def fig_rms_vs_theory(rms_dict, theory) -> go.Figure:
+def fig_rms_vs_theory(freq_hz, vel_kms, rms_dict, theory) -> go.Figure:
     """Per-channel RMS / theory (theory may be a per-channel array)."""
     fig = go.Figure()
     ta = np.asarray(theory, dtype=float)
@@ -192,9 +269,9 @@ def fig_rms_vs_theory(rms_dict, theory) -> go.Figure:
         keep = _keep_mask(n, extra=(quality == "Bad"))
         mc = [cmap.get(q, COL_THEORY) for q in quality[keep]]
         fig.add_trace(go.Scatter(
-            x=chans[keep], y=ratio[keep], mode="lines+markers", name=label,
+            **_xy(vel_kms, chans, keep), y=ratio[keep], mode="lines+markers", name=label,
             marker=dict(color=mc, size=4), line=dict(color=col, width=0.8),
-            hovertemplate="Ch %{x}<br>RMS/theory = %{y:.2f}<extra></extra>"))
+            hovertemplate=HOVER_CH + "<br>RMS/theory = %{y:.2f}<extra></extra>"))
     fig.add_hline(y=1.0, line=dict(color=COL_THEORY, dash="dot", width=1.2),
                   annotation_text="1x theory", annotation_font_color=COL_THEORY)
     fig.add_hline(y=1.5, line=dict(color=COL_WARN, dash="dash", width=1.2),
@@ -204,10 +281,10 @@ def fig_rms_vs_theory(rms_dict, theory) -> go.Figure:
     fig.update_layout(
             template=PLOTLY_TEMPLATE,
             title=dict(text="Per-channel RMS / theoretical noise", font=dict(size=15)),
-            xaxis=dict(title="Channel index"),
             yaxis=dict(title="RMS / theory", type="log"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             height=400, margin=dict(l=70, r=30, t=80, b=60))
+    add_channel_axis(fig, vel_kms)
     return fig
 
 
@@ -226,7 +303,7 @@ def fig_noise_overview(freq_hz, vel_kms, noise_ref, theory_flat, theory_flag,
     def line(y, name, col, dash="solid", width=1.4, row=1, show=True):
         if y is None:
             return
-        fig.add_trace(go.Scatter(x=chans[km], y=np.asarray(y)[km] * 1e3, mode="lines", name=name,
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=np.asarray(y)[km] * 1e3, mode="lines", name=name,
                                  line=dict(color=col, width=width, dash=dash),
                                  showlegend=show), row=row, col=1)
 
@@ -242,19 +319,19 @@ def fig_noise_overview(freq_hz, vel_kms, noise_ref, theory_flat, theory_flag,
     if med is not None and tflag is not None:
         with np.errstate(invalid="ignore", divide="ignore"):
             ratio = np.asarray(med) / tflag
-        fig.add_trace(go.Scatter(x=chans[km], y=ratio[km], mode="lines",
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=ratio[km], mode="lines",
                                  name="median / theory", line=dict(color=COL_DIRTY, width=1.2),
                                  showlegend=False), row=2, col=1)
     fig.add_hline(y=1.0, line_dash="dot", line_color="#555", row=2, col=1)
 
     fig.update_yaxes(title_text="RMS (mJy/beam)", row=1, col=1)
     fig.update_yaxes(title_text="median / theory", row=2, col=1)
-    fig.update_xaxes(title_text="Channel index", row=2, col=1)
     fig.update_layout(
             template=PLOTLY_TEMPLATE, hovermode="x unified", height=600,
             title=dict(text=title, font=dict(size=15)),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(l=70, r=30, t=100, b=60))
+    add_channel_axis(fig, vel_kms, n_xaxes=2)
     return fig
 
 
@@ -265,20 +342,21 @@ def fig_spectral_profile(freq_hz, vel_kms, prof_dict) -> go.Figure:
                         vertical_spacing=0.08)
     for label, d in prof_dict.items():
         n = len(d["peak"]); chans = np.arange(n); km = _keep_mask(n)
-        fig.add_trace(go.Scatter(x=chans[km], y=np.asarray(d["peak"])[km] * 1e3, mode="lines",
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=np.asarray(d["peak"])[km] * 1e3, mode="lines",
                                  name=f"{label} peak", line=dict(color=d["colour"], width=1.5),
-                                 hovertemplate="Ch %{x}<br>Peak = %{y:.3f} mJy/beam<extra></extra>"),
+                                 hovertemplate=HOVER_CH + "<br>Peak = %{y:.3f} mJy/beam<extra></extra>"),
                       row=1, col=1)
-        fig.add_trace(go.Scatter(x=chans[km], y=np.asarray(d["mean"])[km] * 1e6, mode="lines",
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=np.asarray(d["mean"])[km] * 1e6, mode="lines",
                                  name=f"{label} mean", line=dict(color=d["colour"], width=1.5, dash="dot"),
-                                 hovertemplate="Ch %{x}<br>Mean = %{y:.3f} uJy/beam<extra></extra>"),
+                                 hovertemplate=HOVER_CH + "<br>Mean = %{y:.3f} uJy/beam<extra></extra>"),
                       row=2, col=1)
     fig.update_layout(
             template=PLOTLY_TEMPLATE, title=dict(text="Spectral profile", font=dict(size=15)),
-            height=480, xaxis2=dict(title="Channel index"),
+            height=480,
             yaxis=dict(title="Peak (mJy/beam)"), yaxis2=dict(title="Mean (uJy/beam)"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(l=65, r=30, t=100, b=60))
+    add_channel_axis(fig, vel_kms, n_xaxes=2)
     return fig
 
 
@@ -357,16 +435,16 @@ def fig_nhi_sensitivity(freq_hz, vel_kms, nhi_dict, dv_kms=20.0) -> go.Figure:
     for label, d in nhi_dict.items():
         y = np.asarray(d["nhi_chan"], dtype=float)
         n = len(y); chans = np.arange(n); km = _keep_mask(n)
-        fig.add_trace(go.Scatter(x=chans[km], y=y[km], mode="lines", name=label,
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=y[km], mode="lines", name=label,
                                  line=dict(color=d["colour"], width=1.6),
-                                 hovertemplate="Ch %{x}<br>3sig N_HI = %{y:.2e} cm^-2<extra></extra>"))
+                                 hovertemplate=HOVER_CH + "<br>3sig N_HI = %{y:.2e} cm^-2<extra></extra>"))
     fig.update_layout(
             template=PLOTLY_TEMPLATE,
             title=dict(text=f"3&sigma; HI column-density sensitivity (per channel)", font=dict(size=15)),
-            xaxis=dict(title="Channel index"),
             yaxis=dict(title="N_HI (atoms cm^-2)", type="log"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             height=360, margin=dict(l=80, r=30, t=80, b=60))
+    add_channel_axis(fig, vel_kms)
     return fig
 
 
@@ -383,9 +461,9 @@ def fig_kurtosis(freq_hz, vel_kms, kurt_dict) -> go.Figure:
     for label, d in kurt_dict.items():
         y  = np.asarray(d["kurtosis"], dtype=float)
         n  = len(y); chans = np.arange(n); km = _keep_mask(n)
-        fig.add_trace(go.Scatter(x=chans[km], y=y[km], mode="lines", name=label,
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=y[km], mode="lines", name=label,
                                  line=dict(color=d["colour"], width=1.2),
-                                 hovertemplate="Ch %{x}<br>kurtosis = %{y:.3f}<extra></extra>"))
+                                 hovertemplate=HOVER_CH + "<br>kurtosis = %{y:.3f}<extra></extra>"))
         se = d.get("se")
         if se is not None:
             se_med = float(np.nanmedian(np.asarray(se, dtype=float)))
@@ -397,9 +475,10 @@ def fig_kurtosis(freq_hz, vel_kms, kurt_dict) -> go.Figure:
             template=PLOTLY_TEMPLATE,
             title=dict(text="Non-Gaussianity: per-channel kurtosis (shaded = expected sampling scatter)",
                       font=dict(size=15)),
-            xaxis=dict(title="Channel index"), yaxis=dict(title="Pearson kurtosis"),
+            yaxis=dict(title="Pearson kurtosis"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             height=360, margin=dict(l=70, r=30, t=80, b=60))
+    add_channel_axis(fig, vel_kms)
     return fig
 
 
@@ -411,21 +490,22 @@ def fig_beam_stats(freq_hz, vel_kms, beam_dict) -> go.Figure:
         if bmaj is None:
             continue
         n = len(bmaj); chans = np.arange(n); km = _keep_mask(n)
-        fig.add_trace(go.Scatter(x=chans[km], y=np.asarray(bmaj)[km], mode="lines", name=f"{label} BMAJ",
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=np.asarray(bmaj)[km], mode="lines", name=f"{label} BMAJ",
                                  line=dict(color=col, width=1.8),
-                                 hovertemplate="Ch %{x}<br>BMAJ = %{y:.2f}\"<extra></extra>"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=chans[km], y=np.asarray(bmin)[km], mode="lines", name=f"{label} BMIN",
+                                 hovertemplate=HOVER_CH + "<br>BMAJ = %{y:.2f}\"<extra></extra>"), row=1, col=1)
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=np.asarray(bmin)[km], mode="lines", name=f"{label} BMIN",
                                  line=dict(color=col, width=1.8, dash="dot"),
-                                 hovertemplate="Ch %{x}<br>BMIN = %{y:.2f}\"<extra></extra>"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=chans[km], y=np.asarray(bpa)[km], mode="lines", name=f"{label} BPA",
+                                 hovertemplate=HOVER_CH + "<br>BMIN = %{y:.2f}\"<extra></extra>"), row=1, col=1)
+        fig.add_trace(go.Scatter(**_xy(vel_kms, chans, km), y=np.asarray(bpa)[km], mode="lines", name=f"{label} BPA",
                                  line=dict(color=col, width=1.5, dash="dash"),
-                                 hovertemplate="Ch %{x}<br>BPA = %{y:.1f} deg<extra></extra>"), row=2, col=1)
+                                 hovertemplate=HOVER_CH + "<br>BPA = %{y:.1f} deg<extra></extra>"), row=2, col=1)
     fig.update_layout(
             template=PLOTLY_TEMPLATE, title=dict(text="Synthesised beam parameters", font=dict(size=15)),
-            height=500, xaxis2=dict(title="Channel index"), yaxis=dict(title="Beam axis (arcsec)"),
+            height=500, yaxis=dict(title="Beam axis (arcsec)"),
             yaxis2=dict(title="BPA (deg)"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(l=65, r=30, t=100, b=60))
+    add_channel_axis(fig, vel_kms, n_xaxes=2)
     return fig
 
 

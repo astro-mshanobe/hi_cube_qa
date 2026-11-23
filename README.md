@@ -115,6 +115,24 @@ pngs/<obsid>/                    only with output.save_png
 The reports load Plotly from a CDN, so the browser needs internet access; the compute
 node does not.
 
+## Reading the figures
+
+Per-channel figures (RMS, RMS/theory, cumulative RMS, noise overview, spectral profile,
+N_HI sensitivity, kurtosis, beam) are drawn against radio velocity in km/s along the bottom
+axis. The top axis gives the channel index of the same position. It is tied to the velocity
+axis, so zooming and panning move both, and in the HTML report its ticks are recomputed
+after each zoom so that they stay at round channel numbers. Hovering shows both the channel
+index and the velocity. Because velocity is computed from frequency in the radio convention,
+it decreases with channel number for an axis whose frequency increases, so the channel
+numbers on the top axis then run from right to left.
+
+The full-band spectrum keeps its own pair of axes, radio velocity along the bottom and
+frequency in MHz along the top. The channel maps are titled with the channel index, the
+frequency and the velocity.
+
+PNG exports (`output.save_png`) are static: their top axis shows the ticks of the full band.
+The CSV tables list both channel and velocity.
+
 ## QA class definitions
 
 Three separate grading schemes exist. "Source" says where the rule comes from;
@@ -236,6 +254,9 @@ choice for all of it; the 5 and 10 follow the kurtosis convention above.
   a zero beam keyword are not excluded and enter the scatter and axial-ratio checks. In the
   G23 cubes this applies to 103 channels in the GPS band (1379.7 to 1382.4 MHz); excluding
   them is a planned change that will alter reported numbers.
+- The in-page refresh of the top (channel) axis assumes velocity is linear in channel
+  number, as it is for a frequency axis; otherwise the top axis keeps the ticks of the full
+  band when zooming.
 - Spectral axes are handled for `FREQ`, `VELO`, `VRAD` (radio convention) and `VOPT`; other
   axis types fall back to a dummy frequency grid with a warning.
 - Only tested on synthetic cubes and with Python 3.10; the ILIFU container (Python 3.12)

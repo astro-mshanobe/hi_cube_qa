@@ -308,8 +308,8 @@ def assess_unit(unit: Unit, cfg: QAConfig, logger,
     figures = {
             "summary":        fig_summary_table(noise_sums, beam_diags, theory_flag, nchan, nhi_sums),
             "rms_curve":      fig_rms_curve(freq, vel, rms_dict, theory_flag),
-            "rms_vs_theory":  fig_rms_vs_theory(rms_dict, theory_flag),
-            "cumulative_rms": fig_cumulative_rms(freq, rms_dict, theory_flag),
+            "rms_vs_theory":  fig_rms_vs_theory(freq, vel, rms_dict, theory_flag),
+            "cumulative_rms": fig_cumulative_rms(freq, vel, rms_dict, theory_flag),
             "rms_histogram":  fig_rms_histogram(rms_dict),
             "noise_overview": fig_noise_overview(
                     freq, vel,
