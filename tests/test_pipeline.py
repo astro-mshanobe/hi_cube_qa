@@ -427,3 +427,27 @@ def test_auto_mode_uses_only_the_line_cube_where_there_is_one(tmp_path):
     line = checks[("p02/cube_1/c1-line", "Low large-scale noise")]
     assert line["status"] == "Fail" and "indicative" not in line["note"]
     assert checks[("p02/cube_1/c1-residual", "Low large-scale noise")]["status"] == "N/A"
+
+
+@uses_tmp_path
+def test_grade_limits_from_the_config_reach_the_cube_grade(tmp_path):
+    (tmp_path / "default").mkdir()
+    (tmp_path / "loose").mkdir()
+    default, _ = _run(tmp_path / "default", bad_channel=(5, 10.0))
+    loose, _ = _run(
+        tmp_path / "loose",
+        bad_channel=(5, 10.0),
+        extra_config="thresholds:\n  bad_chan_warn_pct: 10.0\n",
+    )
+    # one of 16 channels is Bad: 6.25 %, above the default 5 % limit but below 10 %
+    assert {r["overall_quality"] for r in _band(default).values()} == {"Warn"}
+    assert {r["overall_quality"] for r in _band(loose).values()} == {"Good"}
+
+
+@uses_tmp_path
+def test_flag_limits_from_the_config_reach_the_flag_figure(tmp_path):
+    out, _ = _run(
+        tmp_path, extra_config="thresholds:\n  flag_warn_pct: 20.0\n  flag_bad_pct: 50.0\n"
+    )
+    html = (out / "1600000000_sdp_l0_qa_report.html").read_text()
+    assert '"text":"20%"' in html and '"text":"50%"' in html and '"text":"30%"' not in html
