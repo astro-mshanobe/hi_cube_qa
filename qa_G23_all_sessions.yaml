@@ -49,6 +49,11 @@ sensitivity:
     nhi_dv_kms: 20.0      # report 3-sigma N_HI over a 20 km/s line
     nsigma:     3.0
 
+# Large-scale noise: grade the continuum-subtracted line cube (imsub-line.fits) only;
+# 'auto' would fall back to the residual cube for units without one.
+large_scale:
+    products: reference
+
 continuum:
     sigma: 3.0
 

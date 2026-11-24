@@ -106,11 +106,13 @@ DEFAULTS: dict[str, Any] = {
         "clip_iterations": 3,
     },
     # Excess noise power on large angular scales (large_scale.py). It smooths about
-    # nchan/stride channels per cube, so by default only the continuum-subtracted line cube
-    # (imsub-line.fits) is assessed; units without one are reported as not assessed.
+    # nchan/stride channels per cube, so by default one product per unit is assessed: the
+    # continuum-subtracted line cube (imsub-line.fits) if there is one, else the noise
+    # reference (the residual). The limits were set on line cubes; 'reference' assesses
+    # line cubes only and reports other units as not assessed.
     "large_scale": {
         "enable": True,
-        "products": "reference",  # 'reference' (the line cube), 'all', or a list
+        "products": "auto",  # 'auto' (line cube, else the noise reference), 'reference', 'all', or a list
         "sigma_arcsec": 120.0,  # Gaussian smoothing sigma
         "stride": 20,  # assess every stride-th channel
         "pb_limit": 0.5,  # with a *.pb.fits cube next to the cube
@@ -312,8 +314,10 @@ def load_config(yaml_path: str | Path) -> QAConfig:
 
     ls = cfg["large_scale"]
     prods = ls["products"]
-    if not (prods in ("reference", "all") or (isinstance(prods, list) and prods)):
-        raise ValueError("large_scale.products must be 'reference', 'all' or a non-empty list")
+    if not (prods in ("auto", "reference", "all") or (isinstance(prods, list) and prods)):
+        raise ValueError(
+            "large_scale.products must be 'auto', 'reference', 'all' or a non-empty list"
+        )
     if int(ls["stride"]) < 1:
         raise ValueError("large_scale.stride must be at least 1")
     if float(ls["sigma_arcsec"]) <= 0:
@@ -425,11 +429,11 @@ thresholds:
     baseline_bad_sigma:  10.0  # ... -> Fail
 
 # Excess noise power on large angular scales. Smooths about nchan/stride channels per
-# cube, so by default only the line cube (imsub-line.fits) is assessed; units
-# without one are reported as not assessed.
+# cube, so by default one product per unit is assessed: the line cube
+# (imsub-line.fits) if there is one, else the residual (marked as indicative).
 large_scale:
     enable: true
-    products: reference    # 'reference' (the line cube) | 'all' | [line, residual]
+    products: auto         # 'auto' (line cube, else residual) | 'reference' (line only) | 'all' | [line, residual]
     sigma_arcsec: 120.0    # Gaussian smoothing sigma
     stride: 20             # assess every stride-th channel
     pb_limit: 0.5          # used when a *.pb.fits cube sits next to the cube

@@ -173,15 +173,20 @@ def _noise_reference(labels_by_product: dict[str, str]) -> str | None:
     return next(iter(labels_by_product.values()), None)
 
 
-def _large_scale_wanted(selection, product: str) -> bool:
+def _large_scale_wanted(
+    selection, product: str, has_line: bool = False, is_noise_ref: bool = False
+) -> bool:
     """Whether the large-scale check runs on this product (config large_scale.products).
 
     "reference" is the line cube (imsub-line.fits), whose ratios the limits were set on.
+    "auto" is the line cube where the unit has one and otherwise the noise reference.
     """
     if selection == "all":
         return True
     if selection == "reference":
         return product == "line"
+    if selection == "auto":
+        return product == "line" or (not has_line and is_noise_ref)
     return product in selection
 
 
@@ -425,16 +430,17 @@ def assess_unit(
         "fail_ratio": thr["ls_fail_ratio"],
         "warn_fraction": thr["ls_warn_fraction"],
     }
+    has_line = any(cp.product == "line" and cp.label in red for cp in unit.products)
     if ls_cfg.get("enable", True):
-        if ls_cfg["products"] == "reference" and not any(
-            cp.product == "line" and cp.label in red for cp in unit.products
-        ):
+        if ls_cfg["products"] == "reference" and not has_line:
             note = "no imsub-line.fits (line cube) in this unit"
             large_by_label[ref_label] = {"available": False, "note": note}
             logger.info(f"    large-scale noise not assessed: {note}")
         for cp in unit.products:
             lab = cp.label
-            if lab not in red or not _large_scale_wanted(ls_cfg["products"], cp.product):
+            if lab not in red or not _large_scale_wanted(
+                ls_cfg["products"], cp.product, has_line, lab == ref_label
+            ):
                 continue
             try:
                 summary, rows = assess_file(cp.path, ls_cfg, limits=ls_limits)
@@ -442,6 +448,9 @@ def assess_unit(
                 logger.warning(f"    [{lab}] large-scale noise not assessed ({exc})")
                 large_by_label[lab] = {"available": False, "note": str(exc)}
                 continue
+            if ls_cfg["products"] == "auto" and cp.product != "line":
+                caveat = f"graded on the {cp.product} cube, not a line cube: indicative"
+                summary["note"] = "; ".join(t for t in (summary["note"], caveat) if t)
             large_by_label[lab] = summary
             large_dict[lab] = {"summary": summary, "rows": rows, "colour": cols[lab]}
             logger.info(

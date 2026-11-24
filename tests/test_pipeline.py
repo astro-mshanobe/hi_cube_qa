@@ -147,6 +147,7 @@ def test_baseline_and_large_scale_checks(tmp_path):
     assert status("p02/cube_1/c1-residual", "Flat baseline") == "Pass"
     assert status("p02/cube_1/c1-residual", "Low large-scale noise") == "Fail"
     assert status("p01/cube_1/c1-residual", "Low large-scale noise") == "Pass"
+    assert "indicative" not in checks[("p02/cube_1/c1-residual", "Low large-scale noise")]["note"]
     skipped = checks[("p01/cube_1/c1-image", "Low large-scale noise")]
     assert skipped["status"] == "N/A" and "Not assessed" in skipped["note"]
 
@@ -229,6 +230,9 @@ def test_large_scale_product_selection():
     assert wanted("all", "dirty") and wanted("reference", "line")
     assert not wanted("reference", "residual") and not wanted("reference", "dirty")
     assert wanted(["residual", "image"], "image") and not wanted(["residual"], "dirty")
+    assert wanted("auto", "line", True, False) and wanted("auto", "line", False, False)
+    assert wanted("auto", "residual", False, True) and not wanted("auto", "residual", True, True)
+    assert not wanted("auto", "dirty", False, False)
 
 
 def _add_line_cubes(car, nchan=None):
@@ -319,8 +323,8 @@ def test_initially_visible_hides_the_other_products(tmp_path):
 
 
 @uses_tmp_path
-def test_units_without_a_line_cube_are_not_assessed_for_large_scale_noise(tmp_path):
-    out, _ = _run(tmp_path)
+def test_reference_mode_does_not_assess_units_without_a_line_cube(tmp_path):
+    out, _ = _run(tmp_path, extra_config="large_scale:\n  products: reference\n")
     checks = {
         (r["cube_label"], r["criterion"]): r for r in _rows(out / "1600000000_sdp_l0_checklist.csv")
     }
@@ -388,3 +392,38 @@ def test_the_beam_plot_leaves_gaps_where_there_is_no_beam(tmp_path):
         y = np.array(trace.y, dtype=float)
         if len(y) == 16:
             assert np.isnan(y[3:6]).all() and np.isfinite(np.delete(y, [3, 4, 5])).all()
+
+
+@uses_tmp_path
+def test_auto_mode_falls_back_to_the_residual_cube_with_a_caveat(tmp_path):
+    out, _ = _run(
+        tmp_path,
+        shape=(60, 256, 256),
+        tamper=_slope_and_ripple,
+        extra_config="large_scale:\n  sigma_arcsec: 60.0\n  stride: 10\n",
+    )
+    checks = {
+        (r["cube_label"], r["criterion"]): r for r in _rows(out / "1600000000_sdp_l0_checklist.csv")
+    }
+    ripple = checks[("p02/cube_1/c1-residual", "Low large-scale noise")]
+    assert (
+        ripple["status"] == "Fail"
+        and "graded on the residual cube, not a line cube: indicative" in ripple["note"]
+    )
+    assert checks[("p02/cube_1/c1-image", "Low large-scale noise")]["status"] == "N/A"
+
+
+@uses_tmp_path
+def test_auto_mode_uses_only_the_line_cube_where_there_is_one(tmp_path):
+    out, _ = _run(
+        tmp_path,
+        shape=(60, 256, 256),
+        tamper=_stripes_and_line,
+        extra_config="large_scale:\n  sigma_arcsec: 60.0\n  stride: 10\n",
+    )
+    checks = {
+        (r["cube_label"], r["criterion"]): r for r in _rows(out / "1600000000_sdp_l0_checklist.csv")
+    }
+    line = checks[("p02/cube_1/c1-line", "Low large-scale noise")]
+    assert line["status"] == "Fail" and "indicative" not in line["note"]
+    assert checks[("p02/cube_1/c1-residual", "Low large-scale noise")]["status"] == "N/A"
