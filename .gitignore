@@ -39,3 +39,6 @@ venv/
 
 # macOS
 .DS_Store
+
+# Talk material
+talk/

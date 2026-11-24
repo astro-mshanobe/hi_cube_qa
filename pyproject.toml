@@ -18,6 +18,9 @@ dependencies = [
     "pyyaml>=5.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/astro-mshanobe/hi_cube_qa"
+
 [project.optional-dependencies]
 png = ["kaleido"]
 test = ["pytest"]

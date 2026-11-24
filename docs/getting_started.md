@@ -22,7 +22,7 @@ Without the optional files the tool still runs and the log says what it had to a
 ## 1. Clone the repository
 
 ```sh
-git clone <repository URL>
+git clone https://github.com/astro-mshanobe/hi_cube_qa.git
 cd hi_cube_qa
 ```
 

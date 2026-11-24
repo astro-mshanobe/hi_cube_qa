@@ -123,6 +123,9 @@ and where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).
   the bad-channel fractions, and counted in `n_no_beam`.
 - Tested on synthetic cubes with Python 3.10 and 3.12 (clean install, newest packages) and in the
   cluster container; one G23 pointing (p63) has been run end to end.
+- Not yet checked: PNG export with kaleido (`output.save_png`), the conda `environment.yml`, how
+  the reports render in the browser with plotly 7 (the tests pass with it), and windows narrower
+  than 700 px.
 
 The full list is in [docs/qa_classes.md](docs/qa_classes.md).
 
