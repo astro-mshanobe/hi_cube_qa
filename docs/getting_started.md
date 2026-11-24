@@ -95,8 +95,9 @@ This writes `qa_session_example.yaml` into the current folder. The settings you 
 normally change:
 
 - `sessions`: one `root:` line per session, pointing at its `caracal/` folder.
-- `radiometer.t_total`: on-source hours of the track. The theoretical noise scales with it,
-  and the default of 1 hour is rarely right.
+- `radiometer.t_total`: on-source hours. The default `auto` sums the scan durations of each
+  pointing in the CARACal `obsinfo` summary; without that file it falls back to 1 hour, which
+  is rarely right, so set the real number then. The theoretical noise scales with it.
 - `output.dir`: where the reports go.
 - `plots.initially_visible`: with four products per unit the figures can get busy; for example
   `[residual, line]` starts with only those drawn, and a click on a legend entry shows the others.

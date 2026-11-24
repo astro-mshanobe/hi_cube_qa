@@ -56,7 +56,7 @@ A YAML file; unspecified keys take the defaults in `src/hi_cube_qa/config.py`.
 | `sessions` | list of `{root: <path to caracal/>}`, one report each |
 | `products`, `pointings`, `cubes` | what to load; default `[dirty, image, residual, line]`, all pointings, all cubes |
 | `flagreport_glob` | where to find the CARACal flag-summary JSON; `null` disables |
-| `radiometer.t_total` | on-source hours, which scales the theoretical noise (default 1.0, so set it) |
+| `radiometer.t_total` | on-source hours, which scales the theoretical noise: `auto` (default) sums the scan durations of the pointing in the `obsinfo` summary, with `t_total_fallback` (1 h) if it is missing; or a number of hours for every pointing |
 | `radiometer.n_ant` | `auto` reads the antenna count from `obsinfo`, or give a number |
 | `radiometer.sefd` | SEFD per antenna in Jy, flat across the band (default 425). With `null`, it is derived from `tsys` and `eta`, with the shape of `sefd_curve` |
 | `radiometer.nfac` | weighting penalty on the noise: a number, or `auto` from the Briggs robust value |
@@ -113,8 +113,9 @@ and where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).
 
 - The radiometer expression follows the NRAO VLA sensitivity formula, with the correlator
   efficiency taken as 1, and the default SEFD is SARAO's 425 Jy; both are VLA or calculator
-  values, not measurements of your data. Set `radiometer.t_total` to the real on-source time
-  before reading RMS/theory: the default of 1 hour is a placeholder.
+  values, not measurements of your data. The on-source time is read from `obsinfo` when it
+  is there (`radiometer.t_total: auto`); without it the 1 hour fallback is a placeholder, and
+  RMS/theory should not be read until you set the real time.
 - The nfac table (weighting penalty) is sourced only for about 1.2 at typical robust weighting;
   the other entries and the T_sys and eta fallbacks are unsourced.
 - The flagged fraction is one number per pointing, not a per-channel spectrum.

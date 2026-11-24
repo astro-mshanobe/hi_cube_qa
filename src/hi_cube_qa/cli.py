@@ -173,6 +173,14 @@ def _noise_reference(labels_by_product: dict[str, str]) -> str | None:
     return next(iter(labels_by_product.values()), None)
 
 
+def _t_total_without_obsinfo(rad: dict) -> tuple[float, str]:
+    """On-source hours from the config alone: the number given, or the fallback for 'auto'."""
+    t = rad.get("t_total", "auto")
+    if isinstance(t, str):
+        return float(rad.get("t_total_fallback", 1.0)), "fallback"
+    return float(t), "config"
+
+
 def _large_scale_wanted(
     selection, product: str, has_line: bool = False, is_noise_ref: bool = False
 ) -> bool:
@@ -198,6 +206,8 @@ def assess_unit(
     flag_fraction: float = 0.0,
     n_ant: int | None = None,
     n_ant_src: str = "",
+    t_total_hr: float | None = None,
+    t_total_src: str = "",
 ) -> dict | None:
     """Assess one (pointing, cube_N) unit. All products share a WCS + channel grid
     and are overlaid on shared axes. Each cube is reduced in a single streaming
@@ -264,6 +274,8 @@ def assess_unit(
         None if sefd_curve in (None, "default") else ([] if sefd_curve == "flat" else sefd_curve)
     )
     n_ant_use = n_ant if n_ant else int(rad.get("n_ant_fallback", 60))
+    if t_total_hr is None:
+        t_total_hr, t_total_src = _t_total_without_obsinfo(rad)
 
     # Frequency- and flagging-aware theory (Jy/beam, per channel)
     common = dict(
@@ -271,7 +283,7 @@ def assess_unit(
         tsys=rad["tsys"],
         eta=rad["eta"],
         n_ant=n_ant_use,
-        t_total_hr=rad["t_total"],
+        t_total_hr=t_total_hr,
         df_hz=df_hz,
         nfac=nfac,
         curve=curve,
@@ -280,6 +292,7 @@ def assess_unit(
     theory_flag = theoretical_noise_spectrum(freq, flag_fraction=flag_fraction, **common)
     logger.info(
         f"    df = {df_hz / 1e3:.3f} kHz | n_ant = {n_ant_use} ({n_ant_src}) | "
+        f"t_on = {t_total_hr:.3f} h ({t_total_src}) | "
         f"nfac = {nfac:.2f} ({nfac_src}) | "
         f"flagfrac = {flag_fraction:.2f} | "
         f"theory(mid) = {np.nanmedian(theory_flag) * 1e3:.4f} mJy/beam | "
@@ -570,6 +583,8 @@ def assess_unit(
         "nfac_src": nfac_src,
         "n_ant": n_ant_use,
         "n_ant_src": n_ant_src,
+        "t_total": t_total_hr,
+        "t_total_src": t_total_src,
         "flag_fraction": flag_fraction,
         "pb_corrected": rref["pb_corrected"],
         "overall": _unit_overall(noise_sums),
@@ -654,10 +669,37 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
             n_ant, n_ant_src = None, "bad config value -> fallback"
     logger.info(f"  N_ant [{n_ant_src}]" + (f" = {n_ant}" if n_ant else ""))
 
+    # On-source time per pointing from the obsinfo SCAN table, or the configured hours
+    t_cfg = rad.get("t_total", "auto")
+    on_source, on_source_src = {}, ""
+    if isinstance(t_cfg, str):
+        on_source, on_source_src = obsinfo.read_on_source_hours(root)
+        logger.info(
+            f"  On-source time [{on_source_src}]"
+            + (f": {len(on_source)} fields" if on_source else "")
+        )
+
     bundles = []
     for unit in session.units:
         ff = flag_by_pointing.get(unit.pointing, flag_default)
-        b = assess_unit(unit, cfg, logger, flag_fraction=ff, n_ant=n_ant, n_ant_src=n_ant_src)
+        if isinstance(t_cfg, str):
+            if on_source.get(unit.pointing, 0.0) > 0:
+                t_unit, t_src = on_source[unit.pointing], on_source_src
+            else:
+                t_unit = float(rad.get("t_total_fallback", 1.0))
+                t_src = f"no on-source time for {unit.pointing} ({on_source_src}) -> fallback"
+        else:
+            t_unit, t_src = _t_total_without_obsinfo(rad)
+        b = assess_unit(
+            unit,
+            cfg,
+            logger,
+            flag_fraction=ff,
+            n_ant=n_ant,
+            n_ant_src=n_ant_src,
+            t_total_hr=t_unit,
+            t_total_src=t_src,
+        )
         if b is not None:
             bundles.append(b)
 

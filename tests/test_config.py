@@ -54,6 +54,9 @@ INVALID_SETTINGS = [
     ("radiometer:\n  n_ant_fallback: 1\n", "n_ant_fallback"),
     ("radiometer:\n  sefd: null\n  tsys: 0\n", "tsys"),
     ("radiometer:\n  sefd: 0\n", "sefd"),
+    ("radiometer:\n  t_total: soon\n", "t_total"),
+    ("radiometer:\n  t_total: 0\n", "t_total"),
+    ("radiometer:\n  t_total_fallback: -1\n", "t_total_fallback"),
     ("radiometer:\n  sefd: -5\n", "sefd"),
     ("radiometer:\n  sefd: null\n  eta: 1.5\n", "eta"),
     ("radiometer:\n  t_total: -1\n", "t_total"),
@@ -149,3 +152,11 @@ def test_the_default_sefd_is_flat_425_jy_and_the_time_and_width_are_still_checke
         _cfg(tmp_path, "radiometer:\n  sefd: 420.0\n  t_total: 0\n")
     with raises(ValueError, match="df must"):
         _cfg(tmp_path, "radiometer:\n  sefd: 420.0\n  df: -1\n")
+
+
+@uses_tmp_path
+def test_on_source_time_defaults_to_auto_with_a_one_hour_fallback_and_accepts_hours(tmp_path):
+    assert _cfg(tmp_path).radiometer["t_total"] == "auto"
+    assert _cfg(tmp_path).radiometer["t_total_fallback"] == 1.0
+    assert _cfg(tmp_path, "radiometer:\n  t_total: 2.5\n").radiometer["t_total"] == 2.5
+    assert _cfg(tmp_path, "radiometer:\n  t_total: AUTO\n").radiometer["t_total"] == "AUTO"

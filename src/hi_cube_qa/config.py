@@ -69,7 +69,10 @@ DEFAULTS: dict[str, Any] = {
         # n_ant_fallback if unavailable. Or set a fixed number directly.
         "n_ant": "auto",
         "n_ant_fallback": 60,
-        "t_total": 1.0,
+        # On-source hours: 'auto' reads them per pointing from the obsinfo SCAN table, falling
+        # back to t_total_fallback; or give a number of hours for every pointing.
+        "t_total": "auto",
+        "t_total_fallback": 1.0,
         "df": 26367.19,
         "nfac": 1.0,  # number, or 'auto' (from header Briggs robust)
         # Frequency dependence of the SEFD: 'default' (built-in approximate
@@ -324,8 +327,11 @@ def load_config(yaml_path: str | Path) -> QAConfig:
             raise ValueError("radiometer.tsys must be positive")
         if not (0 < rad["eta"] <= 1):
             raise ValueError("radiometer.eta must be in (0, 1)")
-    if rad["t_total"] <= 0:
-        raise ValueError("radiometer.t_total must be positive")
+    t_is_auto = isinstance(rad["t_total"], str) and rad["t_total"].strip().lower() == "auto"
+    if not t_is_auto and not (isinstance(rad["t_total"], (int, float)) and rad["t_total"] > 0):
+        raise ValueError("radiometer.t_total must be positive hours, or 'auto'")
+    if rad.get("t_total_fallback", 1.0) <= 0:
+        raise ValueError("radiometer.t_total_fallback must be positive")
     if rad["df"] <= 0:
         raise ValueError("radiometer.df must be positive (channel width in Hz)")
 
@@ -404,7 +410,9 @@ radiometer:
     n_ant:          auto  # read the real per-session antenna count from obsinfo;
                           # or set a fixed number directly
     n_ant_fallback: 60    # used only if 'auto' finds nothing
-    t_total: 1.0          # hours on-source (set to the actual track length)
+    t_total: auto         # on-source hours: 'auto' reads them per pointing from obsinfo;
+                          # or a number of hours for every pointing
+    t_total_fallback: 1.0 # hours, used only if 'auto' finds nothing
     df:      26367.19     # Hz; auto-overridden per cube from the FITS header
     nfac:    auto         # weighting penalty: a number, or 'auto' (from the header's Briggs robust)
     sefd_curve:    default   # 'default' freq-dependent curve | 'flat' | [[MHz,Jy],...]

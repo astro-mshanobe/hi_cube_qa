@@ -48,7 +48,9 @@ radiometer:
     n_ant:          auto  # read the real per-session antenna count from obsinfo;
                           # or set a fixed number directly
     n_ant_fallback: 60    # used only if 'auto' finds nothing
-    t_total: 1.0          # hours on-source (set to the actual track length)
+    t_total: auto         # on-source hours: 'auto' reads them per pointing from obsinfo;
+                          # or a number of hours for every pointing
+    t_total_fallback: 1.0 # hours, used only if 'auto' finds nothing
     df:      26367.19     # Hz; auto-overridden per cube from the FITS header
     nfac:    auto         # weighting penalty: a number, or 'auto' (from the header's Briggs robust)
     sefd_curve:    default   # 'default' freq-dependent curve | 'flat' | [[MHz,Jy],...]

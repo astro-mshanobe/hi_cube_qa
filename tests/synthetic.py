@@ -51,6 +51,7 @@ def make_session(
     products=("dirty", "image", "residual"),
     n_ant=8,
     flag_frac=0.2,
+    scan_seconds=None,
     **cube_kw,
 ):
     """Build <root>/<obsid>/caracal/ with cubes, a flag report and an obsinfo summary; return the caracal path."""
@@ -75,9 +76,23 @@ def make_session(
     (diag / f"{obsid}-cal-flag__bpcal-flagging-summary-0.json").write_text(json.dumps(report))
     info = car / "output_hi_1gc" / "obsinfo"
     info.mkdir(parents=True)
+    names = ["J1939-6342", "J2302-3718", *pointings]
+    seconds = scan_seconds or {
+        p: [1200.0] * 3 if i == 0 else [900.0] * 2 for i, p in enumerate(pointings)
+    }
+    scans = {"0": {"1": 600.0}, "1": {"2": 100.0}}
+    for i, p in enumerate(pointings):
+        scans[str(i + 2)] = {str(10 * (i + 1) + k): s for k, s in enumerate(seconds.get(p, []))}
     (info / f"{obsid[:10]}-obsinfo-summary.json").write_text(
         json.dumps(
-            {"ANT": {"NAME": [f"m{k:03d}" for k in range(n_ant)], "DISH_DIAMETER": [13.5] * n_ant}}
+            {
+                "ANT": {
+                    "NAME": [f"m{k:03d}" for k in range(n_ant)],
+                    "DISH_DIAMETER": [13.5] * n_ant,
+                },
+                "FIELD": {"NAME": names},
+                "SCAN": scans,
+            }
         )
     )
     return car

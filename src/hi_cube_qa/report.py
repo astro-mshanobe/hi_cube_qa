@@ -184,6 +184,8 @@ def _provenance_html(unit: dict) -> str:
     if p.get("robust") is not None:
         chip("robust", f"{p['robust']:+.1f}")
     chip("N_ant", f"{unit.get('n_ant', '')} ({unit.get('n_ant_src', '')})")
+    if unit.get("t_total") is not None:
+        chip("on-source", f"{unit['t_total']:.2f} h ({unit.get('t_total_src', '')})")
     chip("nfac", f"{unit.get('nfac', '')} ({unit.get('nfac_src', '')})")
     if unit.get("flag_fraction") is not None:
         chip("flagged frac", f"{unit['flag_fraction']:.2f}")
@@ -277,11 +279,17 @@ def build_session_report(
     else:
         noise_src = f"T<sub>sys</sub> = {rad['tsys']} K, &eta;={rad['eta']}"
     sefd_curve = rad.get("sefd_curve", "default")
-    curve_note = "freq-dependent SEFD" if sefd_curve not in ("flat",) else "flat SEFD"
+    flat = rad.get("sefd") is not None or sefd_curve == "flat"
+    curve_note = "flat SEFD" if flat else "freq-dependent SEFD"
+    t_note = (
+        f"{rad['t_total']} h"
+        if not isinstance(rad["t_total"], str)
+        else "from obsinfo, per pointing"
+    )
     theory_note = (
         f"{noise_src} &nbsp; n<sub>fac</sub> = {rad['nfac']} &nbsp; "
         f"N<sub>ant</sub> = {rad['n_ant']} &nbsp; "
-        f"T<sub>on</sub> = {rad['t_total']} h &nbsp; "
+        f"T<sub>on</sub> = {t_note} &nbsp; "
         f"flagged frac &asymp; {flag_fraction:.2f} (per pointing) &nbsp; ({curve_note}; "
         f"&sigma;<sub>theory</sub>(&nu;) per cube, flagging-reduced)"
     )

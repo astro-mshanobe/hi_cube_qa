@@ -760,7 +760,7 @@ radiometer:
     eta:     0.80           # aperture efficiency
     n_ant:          auto    # real per-session count from obsinfo; or a fixed number
     n_ant_fallback: 60      # used only if 'auto' finds nothing
-    t_total: 1.0            # ON-SOURCE hours -- set to the real track length
+    t_total: auto           # on-source hours: from obsinfo per pointing, or a number
     df:      26367.19       # Hz; auto-overridden per cube from the header
     nfac:    1.7            # weighting penalty, or 'auto' (from header robust)
     sefd_curve:    default  # 'default' freq curve | 'flat' | [[MHz,Jy],...]

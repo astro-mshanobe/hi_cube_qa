@@ -460,7 +460,7 @@ def print_summary(
         noise_src = f"Tsys = {rad['tsys']} K, eta = {rad['eta']}"
     logger.info(f"  Radiometer : {noise_src}")
     logger.info(
-        f"              N_ant = {rad['n_ant']}, t_on = {rad['t_total']} h, "
+        f"              N_ant = {rad['n_ant']}, t_on = {rad['t_total']}{'' if isinstance(rad['t_total'], str) else ' h'}, "
         f"df = {rad['df']:.1f} Hz, nfac = {rad['nfac']}"
     )
     if theory_rms is not None:

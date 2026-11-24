@@ -149,8 +149,11 @@ sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports t
   with the correlator efficiency taken as 1 because no MeerKAT value is known here. The older
   stored runs (`qa_output_repaired`, median RMS/theory of 0.64 for 15 residual cubes) used
   N(N-1)/2 and an SEFD of about 600 Jy, so their theory was about twice too high, and they
-  also used the placeholder `t_total` of 1 hour. Their ratios are not comparable with new
-  ones; recompute them with the real on-source time before quoting any RMS/theory number.
+  also used the placeholder `t_total` of 1 hour (about right for G23, where a pointing has
+  0.96 h on source). Their ratios are not comparable with new ones. The on-source time is now
+  read from the `obsinfo` SCAN table (summed scan durations per field); that scan durations are
+  the on-source time was inferred from the G23 file and its plausible values, not from
+  documentation.
 - The T_sys and eta defaults (used only with `sefd: null`), the SEFD curve and most of the nfac
   table are unsourced (see above); set `radiometer.sefd` or `sefd_curve` from measured values
   for quantitative work.

@@ -29,6 +29,35 @@ def _load_obsinfo_summary(session_root: str | Path) -> tuple[dict | None, Path |
         return None, matches[0], f"failed to read {matches[0].name}: {exc}"
 
 
+def read_on_source_hours(session_root: str | Path) -> tuple[dict[str, float], str]:
+    """On-source hours per field of a session, from the obsinfo summary.json.
+
+    'SCAN' maps the index of a field (in the order of FIELD['NAME']) to a dict of scan
+    number -> duration in seconds; the hours of a field are the sum over its scans. On
+    G23 data a pointing of 12 scans came to 0.96 h, and the calibrators to 0.45 to 0.49 h.
+    Returns ({field name: hours}, a description of the source or the reason it is empty).
+    """
+    d, path, err = _load_obsinfo_summary(session_root)
+    if d is None:
+        return {}, err
+    names = (d.get("FIELD") or {}).get("NAME")
+    scans = d.get("SCAN")
+    if not isinstance(names, list) or not isinstance(scans, dict):
+        return {}, f"{path.name}: no FIELD names or SCAN table"
+    hours: dict[str, float] = {}
+    for key, per_scan in scans.items():
+        try:
+            name = names[int(key)]
+        except (ValueError, IndexError):
+            continue
+        if isinstance(per_scan, dict):
+            seconds = sum(float(v) for v in per_scan.values() if isinstance(v, (int, float)))
+            hours[name] = hours.get(name, 0.0) + seconds / 3600.0
+    if not hours:
+        return {}, f"{path.name}: no scan durations"
+    return hours, f"{path.name} (SCAN, {len(hours)} fields)"
+
+
 def read_n_ant(session_root: str | Path) -> tuple[int | None, str]:
     """Best-effort number of antennas for a session, read from the CARACal
     obsinfo summary.json's 'ANT' field.

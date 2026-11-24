@@ -450,3 +450,84 @@ def test_flag_limits_from_the_config_reach_the_flag_figure(tmp_path):
     )
     html = (out / "1600000000_sdp_l0_qa_report.html").read_text()
     assert '"text":"20%"' in html and '"text":"50%"' in html and '"text":"30%"' not in html
+
+
+@uses_tmp_path
+def test_on_source_time_comes_from_obsinfo_per_pointing_when_auto(tmp_path):
+    # synthetic obsinfo: p01 has three scans of 1200 s (1.0 h), p02 two of 900 s (0.5 h)
+    car = make_session(tmp_path / "data", n_ant=N_ANT, nchan=16, ny=48, nx=48, sigma=SIGMA_JY)
+    config = tmp_path / "qa.yaml"
+    config.write_text(f"sessions:\n  - root: {car}\noutput:\n  dir: {tmp_path / 'out'}\n")
+    argv, sys.argv = sys.argv, ["hi-cube-qa", "--config", str(config)]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            qa_cli.main()
+    finally:
+        sys.argv = argv
+    bands = _band(tmp_path / "out")
+    for pointing, hours in (("p01", 1.0), ("p02", 0.5)):
+        expected = (
+            nz.theoretical_noise(sefd=425.0, n_ant=N_ANT, t_total_hr=hours, df_hz=DF_HZ) * 1e3
+        )
+        assert (
+            abs(float(bands[f"{pointing}/cube_1/c1-image"]["theory_rms_mjy_beam"]) - expected)
+            < 2e-3 * expected
+        )
+    html = (tmp_path / "out" / "1600000000_sdp_l0_qa_report.html").read_text()
+    assert "on-source" in html and "from obsinfo, per pointing" in html
+    assert "flat SEFD" in html and "freq-dependent SEFD" not in html
+
+
+@uses_tmp_path
+def test_auto_falls_back_to_the_configured_hours_when_the_pointing_is_not_in_obsinfo(tmp_path):
+    car = make_session(
+        tmp_path / "data",
+        n_ant=N_ANT,
+        nchan=16,
+        ny=48,
+        nx=48,
+        sigma=SIGMA_JY,
+        scan_seconds={"p01": [3600.0]},
+    )
+    config = tmp_path / "qa.yaml"
+    config.write_text(
+        f"sessions:\n  - root: {car}\noutput:\n  dir: {tmp_path / 'out'}\n"
+        "radiometer:\n  t_total_fallback: 2.0\n"
+    )
+    argv, sys.argv = sys.argv, ["hi-cube-qa", "--config", str(config)]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            qa_cli.main()
+    finally:
+        sys.argv = argv
+    bands = _band(tmp_path / "out")
+    for pointing, hours in (("p01", 1.0), ("p02", 2.0)):  # p02 has no scans: the fallback
+        expected = (
+            nz.theoretical_noise(sefd=425.0, n_ant=N_ANT, t_total_hr=hours, df_hz=DF_HZ) * 1e3
+        )
+        assert (
+            abs(float(bands[f"{pointing}/cube_1/c1-image"]["theory_rms_mjy_beam"]) - expected)
+            < 2e-3 * expected
+        )
+
+
+@uses_tmp_path
+def test_assess_unit_without_obsinfo_hours_uses_the_config(tmp_path):
+    import logging
+
+    from hi_cube_qa.config import load_config
+    from hi_cube_qa.discovery import discover_session
+
+    car = make_session(tmp_path / "data", n_ant=N_ANT, nchan=16, ny=48, nx=48, sigma=SIGMA_JY)
+    for radiometer, hours, source in (
+        ("t_total_fallback: 2.5", 2.5, "fallback"),
+        ("t_total: 3.0", 3.0, "config"),
+    ):
+        config = tmp_path / "qa.yaml"
+        config.write_text(
+            f"sessions:\n  - root: {car}\noutput:\n  dir: {tmp_path / 'out'}\nradiometer:\n  {radiometer}\n"
+        )
+        cfg = load_config(config)
+        unit = discover_session(car, products=cfg.products).units[0]
+        bundle = qa_cli.assess_unit(unit, cfg, logging.getLogger("test"))
+        assert bundle["t_total"] == hours and bundle["t_total_src"] == source
