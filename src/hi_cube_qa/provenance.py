@@ -1,9 +1,9 @@
 """Read imaging provenance from FITS headers and derive the
 weighting noise penalty (nfac) automatically.
 
-WSClean records its settings in the FITS header (and HISTORY). We read the
-Briggs robust value, niter, threshold, restoring beam, and basic observation
-metadata so the report can stamp how the cube was made - and so nfac can be
+WSClean records its settings in the FITS header (and HISTORY). The Briggs
+robust value, niter, threshold, restoring beam, and basic observation metadata
+are read from it, so the report can stamp how the cube was made and nfac can be
 set from the actual weighting rather than by hand.
 """
 

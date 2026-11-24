@@ -12,7 +12,7 @@
 # (baseline) flat across the band for every continuum-subtracted cube?
 #
 # Usage:
-#   cd <the repository checkout>      # the script runs from the directory you submit from
+#   cd <the repository checkout>      # the script runs from the directory the job is submitted from
 #   sbatch run_baseline_flatness.sh                # uses qa_G23_all_sessions.yaml
 #   sbatch run_baseline_flatness.sh my_config.yaml
 

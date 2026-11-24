@@ -1,7 +1,7 @@
 """Entry point for HI Cube QA (session-oriented).
 
-For every session in the config we auto-discover its cubes, assess each
-(pointing, cube_N) unit, and write one interactive HTML report per session.
+For every session in the config the cubes are discovered automatically, each
+(pointing, cube_N) unit is assessed, and one interactive HTML report per session is written.
 """
 
 from __future__ import annotations

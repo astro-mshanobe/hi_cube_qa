@@ -362,7 +362,7 @@ def write_example_config(path: str | Path = "qa_session_example.yaml") -> None:
     example = """\
 # hi_cube_qa - example session configuration
 # One HTML report is produced per session. Cubes are auto-discovered under each
-# session root; you only choose which products to plot.
+# session root; only the products to plot are chosen.
 
 output:
     dir: ./qa_output

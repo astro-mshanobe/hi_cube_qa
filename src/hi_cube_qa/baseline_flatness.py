@@ -219,7 +219,7 @@ def find_imsub_cubes(root: str, pattern: str = "imsub-line.fits") -> list[str]:
     """pattern is glob-matched inside each cube_N/ dir. Default is the
     continuum-subtracted, mosaic-ready product. Pass e.g. '*_HI.image.fits'
     to instead check the pre-continuum-subtraction cleaned image - useful
-    as an A/B comparison of what imcontsub actually bought you.
+    as an A/B comparison of what imcontsub actually gained.
     """
     return sorted(glob.glob(os.path.join(root, "output_hi_p*", "cubes", "cube_*", pattern)))
 

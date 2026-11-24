@@ -11,7 +11,7 @@
 # hi_cube_qa: Slurm job for per-session HI cube QA
 #
 # Usage:
-#   cd <the repository checkout>      # the script runs from the directory you submit from
+#   cd <the repository checkout>      # the script runs from the directory the job is submitted from
 #   sbatch run_qa.sh                       # uses qa_G23_all_sessions.yaml
 #   sbatch run_qa.sh my_config.yaml        # or a custom config
 #

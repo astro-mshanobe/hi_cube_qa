@@ -5,7 +5,7 @@ Quality assessment of MeerKAT HI cubes. For each observation session (one CARACa
 diagnostics, and writes one interactive HTML report, CSV tables and a survey-wide summary.
 
 New to the tool? [docs/getting_started.md](docs/getting_started.md) walks through setting up an
-environment, cloning the repository and running it on a synthetic session and on your own data.
+environment, cloning the repository and running it on a synthetic session and on real data.
 
 ## Install
 
@@ -35,7 +35,7 @@ hi-cube-qa --example-config                               # write ./qa_session_e
 ```
 
 On the cluster, `sbatch run_qa.sh [config.yaml]` and `sbatch run_baseline_flatness.sh`. The
-scripts run in the directory you submit from, which must contain the checkout including
+scripts run in the directory the job is submitted from, which must contain the checkout including
 `src/`; they start the `ASTRO-PY3.12` container with `singularity exec --env PYTHONPATH=...`.
 The login node has no Singularity, so test with `sbatch --wrap`.
 
@@ -105,7 +105,7 @@ flatness (the fitted trend of the per-channel mean, in standard errors of the me
 product) and large-scale noise (the rms of channel maps smoothed to 120 arcsec against what
 neighbouring channels give for noise alone, on the `line` cube, or on the residual cube for a
 unit without one, marked as indicative). Each has its own figure in the report.
-`hi-cube-qa-baseline` runs the baseline check on its own, on any cube you point it at.
+`hi-cube-qa-baseline` runs the baseline check on its own, on any cube given to it.
 These limits are conventions chosen for this toolkit, not published values. The definitions,
 and where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).
 
@@ -113,9 +113,9 @@ and where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).
 
 - The radiometer expression follows the NRAO VLA sensitivity formula, with the correlator
   efficiency taken as 1, and the default SEFD is SARAO's 425 Jy; both are VLA or calculator
-  values, not measurements of your data. The on-source time is read from `obsinfo` when it
+  values, not measurements of the data being assessed. The on-source time is read from `obsinfo` when it
   is there (`radiometer.t_total: auto`); without it the 1 hour fallback is a placeholder, and
-  RMS/theory should not be read until you set the real time.
+  RMS/theory should not be read until the real time is set.
 - The nfac table (weighting penalty) is sourced only for about 1.2 at typical robust weighting;
   the other entries and the T_sys and eta fallbacks are unsourced.
 - The flagged fraction is one number per pointing, not a per-channel spectrum.

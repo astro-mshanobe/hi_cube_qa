@@ -30,7 +30,7 @@ def beam_stats(
     #   BMAJ1, BMIN1, BPA1            (no padding, 1-indexed)
     # When channel numbers exceed keyword length (8 chars), WSClean
     # truncates: BMAJ1000 is fine, but channel indices >9999 would need
-    # BMA10000 (truncated). We also see truncations like BMA1, BMI32, etc.
+    # BMA10000 (truncated). Truncations such as BMA1 and BMI32 also occur.
     # Strategy: try both conventions, prefer the one that exists.
 
     per_chan_format = None

@@ -35,7 +35,7 @@ metric, see the companion \emph{Reference Manual} (\code{hi\_cube\_qa.tex}).
 \addcontentsline{toc}{section}{Workflow}
 
 \textbf{Step 1 --- point a config at one or more session roots.}
-You list \emph{sessions}, not cubes; everything under each session is discovered
+The input is a list of \emph{sessions}, not cubes; everything under each session is discovered
 automatically.
 \begin{lstlisting}
 sessions:
@@ -47,8 +47,8 @@ products: [dirty, image, residual]   # default three; or 'all'; or a subset
 \begin{lstlisting}
 hi-cube-qa --config qa_G23_all_sessions.yaml --list
 \end{lstlisting}
-This prints every \code{pointing/cube\_N} unit and the products found, so you
-can confirm e.g.\ that residuals are picked up before committing to a full run.
+This prints every \code{pointing/cube\_N} unit and the products found, to
+confirm e.g.\ that residuals are picked up before committing to a full run.
 
 \textbf{Step 3 --- run it.} Locally:
 \begin{lstlisting}

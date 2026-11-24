@@ -395,7 +395,7 @@ def build_session_report(
 # Named HTML entities used anywhere in the figures (titles, table cells,
 # annotations). A real browser resolves these fine for the interactive HTML
 # report, but Kaleido's bundled Chromium (used only for static PNG export)
-# does not reliably decode them and fails the whole render - so we swap them
+# does not reliably decode them and fails the whole render - so they are swapped
 # for the literal Unicode character in a throwaway COPY used only for the PNG,
 # never touching the figure object used for the HTML report.
 _KALEIDO_ENTITY_MAP = {
@@ -466,7 +466,7 @@ def png_export_available() -> tuple[bool, str]:
 def export_figs_png(figures, out_dir, prefix, fig_ids, scale=2):
     """Save selected Plotly figures as standalone PNGs (needs the 'kaleido'
     package). Returns (n_saved, ok, err). If kaleido is unavailable the first
-    write raises; we stop and return ok=False so the caller can warn once and
+    write raises; it stops and returns ok=False so the caller can warn once and
     disable PNG export for the rest of the run.
 
     The output directory is only created once a write actually succeeds, so a

@@ -1,8 +1,8 @@
 # Getting started
 
-How to set up hi_cube_qa on a laptop or a cluster and run it on your own cubes.
+How to set up hi_cube_qa on a laptop or a cluster and run it on real cubes.
 
-## What you need
+## Requirements
 
 - Python 3.10 or newer and git.
 - Imaging cubes in the CARACal layout, one folder per observation session:
@@ -28,7 +28,7 @@ cd hi_cube_qa
 
 ## 2. Create an environment
 
-Pick one. All three need the repository you just cloned.
+Pick one. All three need the cloned repository.
 
 With conda or mamba:
 
@@ -69,7 +69,7 @@ The tests use synthetic cubes and take a minute or two. The last line should rea
 
 ## 4. Try it on synthetic data
 
-This needs no data of your own. It writes a small fake session under `/tmp/qa_demo`, runs the
+This needs no observations. It writes a small fake session under `/tmp/qa_demo`, runs the
 tool on it and opens the result:
 
 ```sh
@@ -83,7 +83,7 @@ open /tmp/qa_demo/out/qa_index.html
 `PYTHONPATH=src python3 -m hi_cube_qa` instead of `hi-cube-qa`. The synthetic cubes are pure
 noise, so everything grades Good or Pass.
 
-## 5. Run it on your own data
+## 5. Run it on real data
 
 Write a configuration from the template and edit it:
 
@@ -91,8 +91,8 @@ Write a configuration from the template and edit it:
 hi-cube-qa --example-config
 ```
 
-This writes `qa_session_example.yaml` into the current folder. The settings you will
-normally change:
+This writes `qa_session_example.yaml` into the current folder. The settings that normally
+need changing:
 
 - `sessions`: one `root:` line per session, pointing at its `caracal/` folder.
 - `radiometer.t_total`: on-source hours. The default `auto` sums the scan durations of each
@@ -116,9 +116,9 @@ browser, though not the machine that ran the job, needs a connection. Keep the
 
 ### Running as a batch job
 
-Copy `run_qa.sh` and edit the partition, the resource lines and the `CONTAINER` path for your
-site (or delete the `singularity` wrapper if your environment is already active). Submit it from
-the repository folder with the name of your configuration:
+Copy `run_qa.sh` and edit the partition, the resource lines and the `CONTAINER` path for the
+local site (or delete the `singularity` wrapper if the environment is already active). Submit it from
+the repository folder with the name of the configuration file:
 
 ```sh
 sbatch run_qa.sh my_config.yaml

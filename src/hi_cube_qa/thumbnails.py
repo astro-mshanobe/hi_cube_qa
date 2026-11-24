@@ -1,6 +1,6 @@
 """Channel-map thumbnails and 2-D diagnostic maps.
 
-Channel selection is done upstream (reduction.py); here we only render the
+Channel selection is done upstream (reduction.py); this module only renders the
 handful of planes it picked, plus the per-pixel noise map and continuum
 persistence map, as base-64 PNGs embedded in HTML.
 """

@@ -190,8 +190,8 @@ def flag_fraction_of(content) -> float | None:
                                          "sum": 9.6e8, "counts": 7.0e9}, ...}}]}
 
     Each category partitions the same data, so summing ``sum``/``counts`` over
-    any one category's entries gives the overall flagged fraction. We prefer the
-    smallest category ('corrs'). A generic 'flagged'/'fraction'/'frac' search is
+    any one category's entries gives the overall flagged fraction. The smallest
+    category ('corrs') is preferred. A generic 'flagged'/'fraction'/'frac' search is
     kept as a fallback for other formats.
     """
     if not isinstance(content, dict):

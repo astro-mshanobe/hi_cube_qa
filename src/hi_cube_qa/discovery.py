@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Products we know how to plot; used as the default selection and to order the
+# Products that can be plotted; used as the default selection and to order the
 # legend. Anything else discovered (e.g. "psf") is still available via
 # products: all.
 KNOWN_PRODUCTS = ("dirty", "image", "residual", "line", "model", "psf")
