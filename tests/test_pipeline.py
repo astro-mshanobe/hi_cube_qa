@@ -89,8 +89,7 @@ def test_measured_noise_and_theory(
         assert abs(float(row["median_rms_mjy_beam"]) - SIGMA_JY * 1e3) < 0.05 * SIGMA_JY * 1e3
         assert row["overall_quality"] == "Good" and row["n_channels"] == "16"
     expected_mjy = (
-        nz.theoretical_noise(tsys=25.0, eta=0.80, n_ant=N_ANT, t_total_hr=T_TOTAL_HR, df_hz=DF_HZ)
-        * 1e3
+        nz.theoretical_noise(sefd=425.0, n_ant=N_ANT, t_total_hr=T_TOTAL_HR, df_hz=DF_HZ) * 1e3
     )
     assert abs(float(rows[0]["theory_rms_mjy_beam"]) - expected_mjy) < 1e-3 * expected_mjy
 

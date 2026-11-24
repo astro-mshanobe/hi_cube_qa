@@ -183,9 +183,10 @@ costs no extra full-cube pass.
 
 \subsection{The radiometer-equation expectation}\label{sec:radiometer}
 The theoretical thermal noise of a single channel of an interferometric image
-\citep{tms2017} is computed by \code{theoretical\_noise()}. The
-system-equivalent flux density (SEFD) is either taken directly from the config
-or derived from the system temperature and aperture efficiency,
+\citep{tms2017,nraooss} is computed by \code{theoretical\_noise()}. The
+system-equivalent flux density (SEFD) is taken directly from the config (the default is
+\SI{425}{Jy} per antenna, the value SARAO assumes in its L-band sensitivity calculator,
+\citealp{saraosens}) or derived from the system temperature and aperture efficiency,
 \begin{equation}
   \mathrm{SEFD} = \frac{2 k_{\mathrm B}\,T_{\mathrm{sys}}}{\eta\,A_{\mathrm{geo}}}\times 10^{26}\ \si{Jy},
   \qquad
@@ -198,16 +199,19 @@ $k_{\mathrm B}$, and the factor $10^{26}$ converting
 \begin{equation}
   \sigma_{\mathrm{theory}} =
   \frac{n_{\mathrm{fac}}\;\mathrm{SEFD}}
-       {\sqrt{\,n_{\mathrm{bl}}\;\tau\;\Delta\nu\;n_{\mathrm{pol}}\,}},
+       {\sqrt{\,n_{\mathrm{pair}}\;\tau\;\Delta\nu\;n_{\mathrm{pol}}\,}},
   \qquad
-  n_{\mathrm{bl}} = \frac{N_{\mathrm{ant}}\,(N_{\mathrm{ant}}-1)}{2},
+  n_{\mathrm{pair}} = N_{\mathrm{ant}}\,(N_{\mathrm{ant}}-1),
   \label{eq:radiometer}
 \end{equation}
-where $n_{\mathrm{bl}}$ is the number of baselines, $\tau$ the on-source
+where $n_{\mathrm{pair}}$ is the number of ordered antenna pairs (twice the number of
+baselines), $\tau$ the on-source
 integration time (seconds), $\Delta\nu$ the channel width (hertz),
 $n_{\mathrm{pol}} = 2$ the number of polarisations averaged, and
 $n_{\mathrm{fac}}$ a dimensionless weighting penalty (below). Equation
-(\ref{eq:radiometer}) is the standard interferometric radiometer equation. It is
+(\ref{eq:radiometer}) is the natural-weighting thermal-noise expression of the
+NRAO VLA Observational Status Summary \citep{nraooss}, with its correlator efficiency
+taken as 1 (no MeerKAT value is available here). It is
 retained as a band-centre scalar for logging and for the band-averaged grade,
 but the comparison drawn against the per-channel RMS uses the
 \emph{frequency- and flagging-aware} form of the next two subsections.
@@ -220,8 +224,8 @@ explicitly, or \code{nfac: auto} reads the Briggs \code{robust} value from the
 header (Section~\ref{sec:provenance}) and maps it to an approximate penalty, so
 the prediction matches the weighting actually used.
 
-\paragraph{Number of antennas $N_{\mathrm{ant}}$.} Since $n_{\mathrm{bl}}$
-enters Eq.~(\ref{eq:radiometer}) as $N_{\mathrm{ant}}(N_{\mathrm{ant}}-1)/2$, a
+\paragraph{Number of antennas $N_{\mathrm{ant}}$.} Since $n_{\mathrm{pair}}$
+enters Eq.~(\ref{eq:radiometer}) as $N_{\mathrm{ant}}(N_{\mathrm{ant}}-1)$, a
 fixed assumed array size is a poor approximation across a multi-session
 campaign: individual sessions can differ in how many antennas were available
 (e.g.\ some offline for maintenance), and the theory should reflect the array
@@ -230,7 +234,7 @@ real per-session antenna count is read from the CARACal \code{obsinfo}
 summary's \code{ANT} field once per session; sessions without this information
 fall back to \code{n\_ant\_fallback} (default $60$). A session with $10$ fewer
 antennas than assumed changes $\sigma_{\mathrm{theory}}$ by a factor
-$\sqrt{n_{\mathrm{bl}}^{\mathrm{assumed}}/n_{\mathrm{bl}}^{\mathrm{real}}}$ --
+$\sqrt{n_{\mathrm{pair}}^{\mathrm{assumed}}/n_{\mathrm{pair}}^{\mathrm{real}}}$ --
 e.g.\ $60\to50$ antennas raises the predicted noise by $\sim\!20\%$ -- so
 getting this right matters for the RMS/theory comparison to be meaningful.
 
@@ -258,7 +262,8 @@ $T_{\mathrm{sys}}$ as the absolute scale. The curve is configurable
 (\code{radiometer.sefd\_curve}: \code{default}, \code{flat}, or a list of
 $[\nu_{\mathrm{MHz}}, \mathrm{SEFD}_{\mathrm{Jy}}]$ points).
 
-\paragraph{Caveat.} The built-in default curve is \emph{illustrative} ---
+\paragraph{Caveat.} The curve is used only when \code{radiometer.sefd} is null; with the
+default flat \SI{425}{Jy} it is ignored. The built-in default curve is \emph{illustrative} ---
 it captures the band shape but is not the official SARAO calibration. For
 quantitative work, supply the measured SEFD$(\nu)$ for your observations via
 \code{sefd\_curve}, or set it to \code{flat} to fall back to the single
@@ -271,7 +276,7 @@ classification folds this in,
 \begin{equation}
   \sigma_{\mathrm{theory}}(\nu) =
   \frac{n_{\mathrm{fac}}\,\mathrm{SEFD}(\nu)}
-       {\sqrt{\,n_{\mathrm{bl}}\;\tau_{\mathrm{eff}}(\nu)\;\Delta\nu\;n_{\mathrm{pol}}\,}},
+       {\sqrt{\,n_{\mathrm{pair}}\;\tau_{\mathrm{eff}}(\nu)\;\Delta\nu\;n_{\mathrm{pol}}\,}},
   \qquad
   \tau_{\mathrm{eff}}(\nu) = \tau\,\bigl(1 - f_{\mathrm{flag}}(\nu)\bigr).
   \label{eq:theoryflag}
@@ -750,7 +755,7 @@ cubes: null                 # null/'all' = every cube_N; or e.g. [cube_1] / [1]
 flagreport_glob: output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json
 
 radiometer:
-    sefd:    null           # Jy; if null, derived from tsys/eta
+    sefd:    425.0          # Jy per antenna, flat; if null, derived from tsys/eta
     tsys:    25.0           # K  (MeerKAT L-band typical)
     eta:     0.80           # aperture efficiency
     n_ant:          auto    # real per-session count from obsinfo; or a fixed number
@@ -901,7 +906,7 @@ $f_{\mathrm{flag}}(\nu)$, $\tau_{\mathrm{eff}}$ & Flagged fraction and flagging-
 $T_{\mathrm B}$, $N_{\mathrm{HI}}$ & Brightness temperature and HI column density, Eqs.~(\ref{eq:tb},~\ref{eq:nhi}).\\
 $T_{\mathrm{sys}}$, $\eta$ & System temperature and aperture efficiency.\\
 $d$, $A_{\mathrm{geo}}$ & Dish diameter ($\SI{13.5}{m}$) and geometric area.\\
-$N_{\mathrm{ant}}$, $n_{\mathrm{bl}}$ & Antenna and baseline counts.\\
+$N_{\mathrm{ant}}$, $n_{\mathrm{pair}}$ & Antenna count and number of ordered antenna pairs.\\
 $\tau$, $\Delta\nu$, $n_{\mathrm{pol}}$ & On-source time, channel width, polarisations ($2$).\\
 $n_{\mathrm{fac}}$ & Imaging-weight noise penalty relative to natural.\\
 $\theta_{\mathrm{maj}}$, $\theta_{\mathrm{min}}$ & Beam major/minor FWHM (arcsec).\\

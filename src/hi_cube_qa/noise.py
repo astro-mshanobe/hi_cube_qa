@@ -243,9 +243,10 @@ def theoretical_noise_spectrum(
 ) -> np.ndarray:
     """Per-channel radiometer noise [Jy/beam] across the band.
 
-    sigma(nu) = nfac * SEFD(nu) / sqrt( n_bl * t_eff(nu) * dnu * n_pol )
+    sigma(nu) = nfac * SEFD(nu) / sqrt( n_pol * N * (N - 1) * t_eff(nu) * dnu )
 
-    with t_eff(nu) = t_total * (1 - f_flag(nu)). The flagged fraction reduces
+    for N antennas (the NRAO VLA Observational Status Summary, "Sensitivity", eq. 1, with
+    the correlator efficiency taken as 1; n_pol = 2 for Stokes I), and t_eff(nu) = t_total * (1 - f_flag(nu)). The flagged fraction reduces
     the effective on-source time, so heavily-flagged sub-bands are *expected*
     to be noisier - this is what makes the per-channel RMS/theory comparison
     fair. *flag_fraction* may be a scalar or a per-channel array in [0, 1).
@@ -253,13 +254,13 @@ def theoretical_noise_spectrum(
     freq_hz = np.asarray(freq_hz, dtype=float)
     sefd_nu = sefd_spectrum(freq_hz, sefd=sefd, tsys=tsys, eta=eta, curve=curve)
 
-    n_bl = n_ant * (n_ant - 1) / 2.0
+    n_pairs = n_ant * (n_ant - 1)
     t_s = t_total_hr * 3600.0
     fflag = np.clip(np.asarray(flag_fraction, dtype=float), 0.0, 0.999)
     t_eff = t_s * (1.0 - fflag)
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        sigma = nfac * sefd_nu / np.sqrt(n_bl * t_eff * df_hz * n_pol)
+        sigma = nfac * sefd_nu / np.sqrt(n_pairs * t_eff * df_hz * n_pol)
     return sigma
 
 
@@ -274,15 +275,16 @@ def theoretical_noise(
     nfac: float = 1.0,
 ) -> float:
     """Band-centre scalar radiometer noise [Jy/beam] (flat SEFD from tsys/eta or a
-    supplied SEFD). Retained for band-average summaries and logging.
+    supplied SEFD), with the expression of theoretical_noise_spectrum. Retained for
+    band-average summaries and logging.
     """
     if sefd is not None and sefd > 0:
         sefd_jy = float(sefd)
     else:
         sefd_jy = sefd_from_tsys(tsys, eta)
-    n_bl = n_ant * (n_ant - 1) / 2.0
+    n_pairs = n_ant * (n_ant - 1)
     t_s = t_total_hr * 3600.0
-    return float(nfac * sefd_jy / np.sqrt(n_bl * t_s * df_hz * n_pol))
+    return float(nfac * sefd_jy / np.sqrt(n_pairs * t_s * df_hz * n_pol))
 
 
 # HI column-density sensitivity

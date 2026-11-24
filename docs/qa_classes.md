@@ -134,26 +134,26 @@ sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports t
 
 | Quantity | Expression in the code | Status |
 |----------|------------------------|--------|
-| Radiometer noise | nfac SEFD / sqrt(n_bl t_eff dnu n_pol), n_bl = N(N-1)/2, n_pol = 2, t_eff = t_total (1 - f_flag) | **not checked against a primary reference**, see limitations |
-| SEFD from T_sys | 2 k T_sys / (eta pi (d/2)^2) with d = 13.5 m | arithmetic checked (602.8 Jy for 25 K and 0.80); the defaults 25 K and 0.80 have no source here |
-| Frequency dependence of SEFD | built-in curve (405 to 660 Jy between 900 and 1670 MHz), rescaled so that its value at the median channel frequency equals the T_sys-derived SEFD | the curve is labelled illustrative in the code; it is not an official SARAO calibration |
+| Radiometer noise | nfac SEFD / sqrt(n_pol N (N-1) t_eff dnu), n_pol = 2, t_eff = t_total (1 - f_flag) | matches the natural-weighting formula of the NRAO VLA Observational Status Summary, "Sensitivity" (n_pol = 2 for Stokes I, N(N-1) under the root), with the correlator efficiency taken as 1: no MeerKAT value is known here. Until 24 November 2026 the code used N(N-1)/2 there, which overestimated the noise by sqrt(2) |
+| SEFD | 425 Jy per antenna, flat (`radiometer.sefd`) | the value SARAO assumes for L-band in its MeerKAT sensitivity calculator (page read in November 2026; the Tsys and efficiency tables of the specifications page could not be read) |
+| SEFD from T_sys | 2 k T_sys / (eta pi (d/2)^2) with d = 13.5 m, used when `sefd` is null | arithmetic checked (602.8 Jy for 25 K and 0.80); the defaults 25 K and 0.80 have no source and give a value 40% above SARAO's |
+| Frequency dependence of SEFD | built-in curve (405 to 660 Jy between 900 and 1670 MHz), used only when `sefd` is null, rescaled so that its value at the median channel frequency equals the T_sys-derived SEFD | the curve is labelled illustrative in the code; it is not an official SARAO calibration |
 | Theory from frequency-dependent SEFD and the number of unflagged visibilities | approach of Luber et al. 2025 (p. 6) | checked in the PDF. Here the flagged fraction is one scalar per pointing, not per channel |
-| Weighting penalty nfac | table by Briggs robust: -2 to 1.40, -1 to 1.35, -0.5 to 1.20, 0 to 1.10, 0.5 to 1.04, 1 to 1.02, 2 to 1.00, interpolated | table is described in the code as typical values, with no source. Luber et al. 2025 report an effect below about 5 % on the noise for robust 0.5 |
+| Weighting penalty nfac | table by Briggs robust: -2 to 1.40, -1 to 1.35, -0.5 to 1.20, 0 to 1.10, 0.5 to 1.04, 1 to 1.02, 2 to 1.00, interpolated | the NRAO VLA page gives about 1.2 for typical robust weighting with the VLA; the other entries and any MeerKAT value have no source. Luber et al. 2025 report an effect below about 5 % on the noise for robust 0.5 |
 | Brightness temperature | T_B = 1.222e3 S[mJy/beam] / (nu[GHz]^2 bmaj["] bmin["]) | coefficient recomputed from the Rayleigh-Jeans law for a Gaussian beam: 1222.1 |
 | N_HI sensitivity | 1.823e18 nsigma T_B(sigma) sqrt(dv_chan dv) cm^-2, for N = dv/dv_chan independent channels | the coefficient is the optically thin conversion; recomputed from A10 = 2.869e-15 s^-1 (value not verified against a source) it is 1.8225e18, and 1.8127e18 with 2.8843e-15. It assumes spin temperature far above 0.07 K and no self-absorption |
 
 ## Limitations and open checks
 
-- Radiometer expression. The comparison between measured RMS and theory has not been
-  verified against Thompson, Moran and Swenson or another primary source (not available
-  in this repository). In the stored `qa_output_repaired` run the median RMS/theory of the
-  15 residual cubes is 0.64 (range 0.60 to 1.18), i.e. the noise is well below the prediction. Why has not
-  been established; the noise also differs by a factor 2 to 3 between older and newer
-  sessions. Check the expression, the SEFD scale (default T_sys and eta give about 600 Jy,
-  while the built-in curve itself lies between 405 and 660 Jy) and nfac before quoting RMS/theory
-  numbers.
-- Default `tsys`, `eta`, the SEFD curve and the nfac table are unsourced (see above); set
-  `radiometer.sefd` or `sefd_curve` from measured values for quantitative work.
+- Radiometer expression. It now follows the NRAO VLA formula (N(N-1) under the root, n_pol = 2),
+  with the correlator efficiency taken as 1 because no MeerKAT value is known here. The older
+  stored runs (`qa_output_repaired`, median RMS/theory of 0.64 for 15 residual cubes) used
+  N(N-1)/2 and an SEFD of about 600 Jy, so their theory was about twice too high, and they
+  also used the placeholder `t_total` of 1 hour. Their ratios are not comparable with new
+  ones; recompute them with the real on-source time before quoting any RMS/theory number.
+- The T_sys and eta defaults (used only with `sefd: null`), the SEFD curve and most of the nfac
+  table are unsourced (see above); set `radiometer.sefd` or `sefd_curve` from measured values
+  for quantitative work.
 - The flagged fraction is a single number per pointing, not a per-channel flag spectrum.
   Only the per-pointing target flag summaries are used (calibrator flags are ignored);
   pointings without a report get the session median.

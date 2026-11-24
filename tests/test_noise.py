@@ -131,8 +131,8 @@ def test_theoretical_noise_scaling():
     s = nz.theoretical_noise(
         sefd=400.0, n_ant=60, t_total_hr=1.0, df_hz=26367.19, n_pol=2, nfac=1.0
     )
-    n_bl = 60 * 59 / 2
-    assert abs(s - 400.0 / np.sqrt(n_bl * 3600.0 * 26367.19 * 2)) < 1e-15
+    n_pairs = 60 * 59  # N (N - 1), as in the NRAO VLA sensitivity formula
+    assert abs(s - 400.0 / np.sqrt(n_pairs * 3600.0 * 26367.19 * 2)) < 1e-15
     assert (
         abs(
             nz.theoretical_noise(sefd=400.0, t_total_hr=4.0)
@@ -315,3 +315,15 @@ def test_channel_summary_grade_limits_come_from_the_limits():
         limits={"rms_bad_factor": 1.9},
     )
     assert strict["overall_quality"] == nz.BAD
+
+
+def test_radiometer_noise_against_a_hand_calculation():
+    # 425 Jy, 58 antennas, one hour, 26367.19 Hz, two polarisations: 425 / sqrt(2 * 58 * 57 * 3600 * 26367.19)
+    s = nz.theoretical_noise(sefd=425.0, n_ant=58, t_total_hr=1.0, df_hz=26367.19)
+    assert abs(s - 5.3646e-4) < 1e-8
+    spectrum = nz.theoretical_noise_spectrum(
+        np.full(3, 1.4e9), sefd=425.0, n_ant=58, t_total_hr=1.0
+    )
+    assert np.allclose(spectrum, s)
+    one_pol = nz.theoretical_noise(sefd=425.0, n_ant=58, t_total_hr=1.0, n_pol=1)
+    assert abs(one_pol / s - np.sqrt(2.0)) < 1e-12  # n_pol is under the square root

@@ -57,7 +57,10 @@ DEFAULTS: dict[str, Any] = {
     # finds nothing, discovery falls back to progressively broader globs.
     "flagreport_glob": "output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json",
     "radiometer": {
-        "sefd": None,
+        # System equivalent flux density per antenna in Jy, flat across the band. 425 Jy is
+        # the L-band value assumed in SARAO's MeerKAT sensitivity calculator. Set it to null
+        # to derive it from tsys and eta instead, with the shape of sefd_curve.
+        "sefd": 425.0,
         "tsys": 25.0,
         "eta": 0.80,
         # Number of antennas: 'auto' reads the real count for this session
@@ -314,15 +317,17 @@ def load_config(yaml_path: str | Path) -> QAConfig:
         raise ValueError("radiometer.n_ant must be >= 2, or 'auto'")
     if rad.get("n_ant_fallback", 60) < 2:
         raise ValueError("radiometer.n_ant_fallback must be >= 2")
+    if rad["sefd"] is not None and rad["sefd"] <= 0:
+        raise ValueError("radiometer.sefd must be positive, or null")
     if rad["sefd"] is None:
         if rad["tsys"] <= 0:
             raise ValueError("radiometer.tsys must be positive")
         if not (0 < rad["eta"] <= 1):
             raise ValueError("radiometer.eta must be in (0, 1)")
-        if rad["t_total"] <= 0:
-            raise ValueError("radiometer.t_total must be positive")
-        if rad["df"] <= 0:
-            raise ValueError("radiometer.df must be positive (channel width in Hz)")
+    if rad["t_total"] <= 0:
+        raise ValueError("radiometer.t_total must be positive")
+    if rad["df"] <= 0:
+        raise ValueError("radiometer.df must be positive (channel width in Hz)")
 
     shown = cfg["plots"]["initially_visible"]
     if not (shown == "all" or (isinstance(shown, list) and shown)):
@@ -392,9 +397,10 @@ cubes: null
 flagreport_glob: output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json
 
 radiometer:
-    sefd:    null
-    tsys:    25.0
-    eta:     0.80
+    sefd:    425.0        # Jy per antenna, flat (SARAO sensitivity calculator, L-band);
+                          # null derives it from tsys and eta with the shape of sefd_curve
+    tsys:    25.0         # used only when sefd is null (unsourced default)
+    eta:     0.80         # used only when sefd is null (unsourced default)
     n_ant:          auto  # read the real per-session antenna count from obsinfo;
                           # or set a fixed number directly
     n_ant_fallback: 60    # used only if 'auto' finds nothing

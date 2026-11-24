@@ -12,8 +12,11 @@ from __future__ import annotations
 import numpy as np
 
 # Approximate natural-relative noise penalty for MeerKAT Briggs weighting.
-# Natural = 1.0; uniform ~ 1.4. Robust interpolates. These are typical values;
-# the exact penalty depends on the uv-coverage of each track.
+# Natural = 1.0; uniform ~ 1.4. Robust interpolates. These are typical values and
+# the exact penalty depends on the uv-coverage of each track. The only source for
+# them is the NRAO VLA Observational Status Summary ("Sensitivity"), which gives
+# about 1.2 for typical robust weighting with the VLA; the other entries, and the
+# MeerKAT numbers, are unsourced.
 _ROBUST_NFAC = [
     (-2.0, 1.40),  # ~ uniform
     (-1.0, 1.35),

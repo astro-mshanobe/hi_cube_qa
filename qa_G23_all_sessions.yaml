@@ -34,7 +34,7 @@ cubes: null
 flagreport_glob: output_hi_1gc/diagnostic_plots/*-flagging-summary-*.json
 
 radiometer:
-    sefd:    null
+    sefd:    425.0       # Jy per antenna, flat (SARAO sensitivity calculator, L-band)
     tsys:    25.0
     eta:     0.80
     n_ant:          auto  # real per-session antenna count from obsinfo; or a fixed number

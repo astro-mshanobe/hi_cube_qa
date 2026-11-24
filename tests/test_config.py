@@ -52,8 +52,10 @@ INVALID_SETTINGS = [
     ("thumbnails:\n  selectors: []\n", "selectors"),
     ("radiometer:\n  n_ant: 1\n", "n_ant must be"),
     ("radiometer:\n  n_ant_fallback: 1\n", "n_ant_fallback"),
-    ("radiometer:\n  tsys: 0\n", "tsys"),
-    ("radiometer:\n  eta: 1.5\n", "eta"),
+    ("radiometer:\n  sefd: null\n  tsys: 0\n", "tsys"),
+    ("radiometer:\n  sefd: 0\n", "sefd"),
+    ("radiometer:\n  sefd: -5\n", "sefd"),
+    ("radiometer:\n  sefd: null\n  eta: 1.5\n", "eta"),
     ("radiometer:\n  t_total: -1\n", "t_total"),
     ("radiometer:\n  df: 0\n", "df must"),
     ("large_scale:\n  products: some\n", "large_scale.products"),
@@ -138,3 +140,12 @@ def test_example_file_matches_defaults(tmp_path):
 def test_shipped_example_is_current(tmp_path):
     shipped = ROOT / "qa_session_example.yaml"
     assert shipped.read_text() == _example(tmp_path).read_text()
+
+
+@uses_tmp_path
+def test_the_default_sefd_is_flat_425_jy_and_the_time_and_width_are_still_checked(tmp_path):
+    assert _cfg(tmp_path).radiometer["sefd"] == 425.0
+    with raises(ValueError, match="t_total"):
+        _cfg(tmp_path, "radiometer:\n  sefd: 420.0\n  t_total: 0\n")
+    with raises(ValueError, match="df must"):
+        _cfg(tmp_path, "radiometer:\n  sefd: 420.0\n  df: -1\n")
