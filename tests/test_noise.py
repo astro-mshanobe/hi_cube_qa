@@ -287,3 +287,31 @@ def test_channel_summary_percentages_use_the_graded_channels():
     s = nz.channel_summary(np.ones(100), quality, 1.0, exclude=exclude)
     assert abs(s["pct_bad"] - 100 * 5 / 80) < 1e-12 and abs(s["pct_warn"] - 100 * 15 / 80) < 1e-12
     assert s["overall_quality"] == nz.WARN
+
+
+def test_channel_summary_grade_limits_come_from_the_limits():
+    def grade(n_bad, n_warn, **limits):
+        quality = np.array(
+            [nz.BAD] * n_bad + [nz.WARN] * n_warn + [nz.GOOD] * (100 - n_bad - n_warn), dtype=object
+        )
+        return nz.channel_summary(np.ones(100), quality, 1.0, limits=limits)["overall_quality"]
+
+    assert grade(8, 0) == nz.WARN and grade(8, 0, bad_chan_warn_pct=10.0) == nz.GOOD
+    assert grade(8, 0, bad_chan_bad_pct=6.0) == nz.BAD
+    assert grade(0, 30) == nz.WARN and grade(0, 30, warn_chan_warn_pct=40.0) == nz.GOOD
+    ratio = nz.channel_summary(np.full(10, 2.0), np.array([nz.GOOD] * 10, dtype=object), 1.0)
+    assert ratio["overall_quality"] == nz.WARN
+    loose = nz.channel_summary(
+        np.full(10, 2.0),
+        np.array([nz.GOOD] * 10, dtype=object),
+        1.0,
+        limits={"rms_warn_factor": 2.5},
+    )
+    assert loose["overall_quality"] == nz.GOOD
+    strict = nz.channel_summary(
+        np.full(10, 2.0),
+        np.array([nz.GOOD] * 10, dtype=object),
+        1.0,
+        limits={"rms_bad_factor": 1.9},
+    )
+    assert strict["overall_quality"] == nz.BAD

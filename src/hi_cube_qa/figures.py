@@ -968,7 +968,7 @@ def hide_products(fig: go.Figure, labels) -> None:
             shape.visible = False
 
 
-def fig_flag_summary(flag_data) -> go.Figure | None:
+def fig_flag_summary(flag_data, warn_pct: float = 10.0, bad_pct: float = 30.0) -> go.Figure | None:
     """One bar per flag report (per pointing/stage), coloured by fraction."""
     if flag_data is None:
         return None
@@ -982,7 +982,7 @@ def fig_flag_summary(flag_data) -> go.Figure | None:
         f = float(fr) * 100
         labels.append(label)
         fracs.append(f)
-        colours.append(COL_BAD if f > 30 else COL_WARN if f > 10 else COL_THEORY)
+        colours.append(COL_BAD if f > bad_pct else COL_WARN if f > warn_pct else COL_THEORY)
 
     if not labels:
         return None
@@ -1001,15 +1001,15 @@ def fig_flag_summary(flag_data) -> go.Figure | None:
         )
     )
     fig.add_vline(
-        x=10,
+        x=warn_pct,
         line=dict(color=COL_WARN, dash="dash", width=1),
-        annotation_text="10%",
+        annotation_text=f"{warn_pct:g}%",
         annotation_font_color=COL_WARN,
     )
     fig.add_vline(
-        x=30,
+        x=bad_pct,
         line=dict(color=COL_BAD, dash="dash", width=1),
-        annotation_text="30%",
+        annotation_text=f"{bad_pct:g}%",
         annotation_font_color=COL_BAD,
     )
     fig.update_layout(

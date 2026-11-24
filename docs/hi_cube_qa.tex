@@ -253,7 +253,7 @@ makes the RMS-to-theory ratio spuriously large at the band edges even for good
 data. \code{sefd\_spectrum()} therefore evaluates an SEFD \emph{curve}
 $\mathrm{SEFD}(\nu)$, normalised so its band-centre value equals the
 $T_{\mathrm{sys}}/\eta$ SEFD of Eq.~(\ref{eq:sefd}) --- i.e.\ it adopts the
-\emph{shape} of the published L-band curve while keeping the user's
+\emph{shape} of an illustrative L-band curve while keeping the user's
 $T_{\mathrm{sys}}$ as the absolute scale. The curve is configurable
 (\code{radiometer.sefd\_curve}: \code{default}, \code{flat}, or a list of
 $[\nu_{\mathrm{MHz}}, \mathrm{SEFD}_{\mathrm{Jy}}]$ points).

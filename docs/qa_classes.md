@@ -34,8 +34,8 @@ all finite channels if none is Good, divided by the median theoretical noise):
 | Warn | Bad channels >= 5 %, or Warn channels >= 20 %, or R > 1.5 |
 | Good | otherwise |
 
-Source: own choice. These limits are fixed in the code; the config keys
-`thresholds.bad_chan_warn_pct` and `bad_chan_bad_pct` exist but are not read.
+Source: own choice. The limits are the config keys `thresholds.bad_chan_warn_pct`,
+`bad_chan_bad_pct`, `warn_chan_warn_pct` and `rms_bad_factor`.
 
 ### Non-Gaussianity (kurtosis)
 
@@ -54,7 +54,11 @@ finite pixels in the channel divided by the pixels per beam.
 ### Expert checklist (Pass / Warn / Fail)
 
 Eleven criteria per unit and product, in `<obsid>_checklist.csv`. All limits are own
-choices. The beam-scatter, baseline and large-scale limits are read from the config; the others are fixed in the code.
+choices, and all of them are config keys under `thresholds` (`rms_warn_factor`, `bad_chan_warn_pct`,
+`convergence_warn`, `axial_ratio_warn`, `outlier_factor`, `continuum_warn_pct`,
+`kurtosis_chan_warn_pct` and so on; the full list with the defaults is in
+`qa_session_example.yaml`). The criteria names in the CSV carry no numbers; the `description`
+column gives the limit in force.
 
 | Criterion | Pass | Warn | Fail |
 |-----------|------|------|------|
@@ -73,8 +77,7 @@ choices. The beam-scatter, baseline and large-scale limits are read from the con
 ### Flagged fraction (session figure)
 
 Flag-summary entries are drawn in the warning colour above 10 % and the severe colour
-above 30 %. Own choice; fixed in the code (the config keys `flag_warn_pct` and
-`flag_bad_pct` are not read).
+above 30 %. Own choice; set by `thresholds.flag_warn_pct` and `flag_bad_pct`.
 
 ### Baseline flatness
 
@@ -157,8 +160,6 @@ sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports t
 - All class thresholds are conventions of this toolkit, not validated limits. Luber et al.
   2025 treat a deviation of 30 % in their RMS ratio as significant; that is their choice
   for CHILES data.
-- Four config thresholds (`bad_chan_warn_pct`, `bad_chan_bad_pct`, `flag_warn_pct`,
-  `flag_bad_pct`) are accepted but fixed values are used in the code.
 - The number of antennas read from `obsinfo` is the antenna table length, i.e. antennas
   present, not antennas that survived calibration and flagging.
 - Channels without a usable beam (a zero or missing beam keyword, as WSClean writes for
@@ -172,8 +173,9 @@ sigma, for example 120 arcsec on 6 arcsec pixels), otherwise the check reports t
   band when zooming.
 - Spectral axes are handled for `FREQ`, `VELO`, `VRAD` (radio convention) and `VOPT`; other
   axis types fall back to a dummy frequency grid with a warning.
-- Only tested on synthetic cubes and with Python 3.10; the ILIFU container (Python 3.12)
-  has not been tested.
+- Tested on synthetic cubes with Python 3.10 and, in a clean install with the newest packages,
+  3.12, and in the ILIFU container (Python 3.12). One G23 pointing (p63 of session 1610268336)
+  has been run end to end.
 
 ## Field notes (G23 data, October 2026)
 

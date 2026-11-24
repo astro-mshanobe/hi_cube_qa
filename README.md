@@ -119,8 +119,8 @@ and where each rule comes from, are in [docs/qa_classes.md](docs/qa_classes.md).
 - The flagged fraction is one number per pointing, not a per-channel spectrum.
 - Channels with a zero beam (103 in the G23 GPS band) are left out of the beam statistics and
   the bad-channel fractions, and counted in `n_no_beam`.
-- Tested on synthetic cubes and Python 3.10; the cluster container (Python 3.12) passes the
-  test suite but real cubes have not been run through the newest figures.
+- Tested on synthetic cubes with Python 3.10 and 3.12 (clean install, newest packages) and in the
+  cluster container; one G23 pointing (p63) has been run end to end.
 
 The full list is in [docs/qa_classes.md](docs/qa_classes.md).
 

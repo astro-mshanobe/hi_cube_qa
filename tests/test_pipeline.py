@@ -361,7 +361,7 @@ def test_channels_without_a_beam_do_not_count_against_the_cube(tmp_path):
     assert row["std_bmaj_asec"] == "0.0000" and row["median_bmaj_asec"] == "20.000"
     checks = {(r["cube_label"], r["criterion"]): r for r in _rows(out / f"{obsid}_checklist.csv")}
     assert checks[("p01/cube_1/c1-image", "Beam stability")]["status"] == "Pass"
-    few = checks[("p01/cube_1/c1-image", "Few bad channels (< 5%)")]
+    few = checks[("p01/cube_1/c1-image", "Few bad channels")]
     assert few["status"] == "Pass" and "3 channel(s) without a beam" in few["note"]
     kurt = checks[("p01/cube_1/c1-image", "Gaussian noise (kurtosis)")]["note"]
     assert kurt.startswith(

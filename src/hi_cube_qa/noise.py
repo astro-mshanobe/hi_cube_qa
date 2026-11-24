@@ -419,12 +419,16 @@ def channel_summary(
     quality: np.ndarray,
     theory: float | np.ndarray | None,
     exclude: np.ndarray | None = None,
+    limits: dict | None = None,
 ) -> dict:
     """Aggregate per-channel results into a band-level summary.
 
     Channels flagged in *exclude* (for example those with no beam, which carry no data) are
     left out of the counts, the percentages and the rms statistics; they stay in n_total.
+    *limits* may hold rms_warn_factor, rms_bad_factor, bad_chan_warn_pct, bad_chan_bad_pct and
+    warn_chan_warn_pct, which set the cube grade.
     """
+    limits = limits or {}
     rms = np.asarray(rms, dtype=float)
     quality = np.asarray(quality, dtype=object)
     n_total = len(rms)
@@ -465,9 +469,15 @@ def channel_summary(
         else None
     )
 
-    if pct_bad >= 15.0 or (ratio is not None and ratio > 3.0):
+    bad_ratio = limits.get("rms_bad_factor", 3.0)
+    warn_ratio = limits.get("rms_warn_factor", 1.5)
+    if pct_bad >= limits.get("bad_chan_bad_pct", 15.0) or (ratio is not None and ratio > bad_ratio):
         overall = BAD
-    elif pct_bad >= 5.0 or pct_warn >= 20.0 or (ratio is not None and ratio > 1.5):
+    elif (
+        pct_bad >= limits.get("bad_chan_warn_pct", 5.0)
+        or pct_warn >= limits.get("warn_chan_warn_pct", 20.0)
+        or (ratio is not None and ratio > warn_ratio)
+    ):
         overall = WARN
     else:
         overall = GOOD

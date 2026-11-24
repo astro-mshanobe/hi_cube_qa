@@ -300,3 +300,18 @@ def test_hide_products_leaves_a_table_alone():
     fig = go.Figure(go.Table(header=dict(values=["a"]), cells=dict(values=[[1]])))
     figs.hide_products(fig, ["A"])
     assert fig.data[0].type == "table"
+
+
+def _flag_report(fraction):
+    return {"Flag stats": [{"corrs": {"0": {"sum": fraction * 1e6, "counts": 1e6}}}]}
+
+
+def test_flag_summary_limits_come_from_the_thresholds():
+    reports = {"a": _flag_report(0.05), "b": _flag_report(0.20), "c": _flag_report(0.50)}
+    default = figs.fig_flag_summary(reports)
+    assert list(default.data[0].marker.color) == [figs.COL_THEORY, figs.COL_WARN, figs.COL_BAD]
+    assert [a.text for a in default.layout.annotations] == ["10%", "30%"]
+    custom = figs.fig_flag_summary(reports, warn_pct=25.0, bad_pct=60.0)
+    assert list(custom.data[0].marker.color) == [figs.COL_THEORY, figs.COL_THEORY, figs.COL_WARN]
+    assert [a.text for a in custom.layout.annotations] == ["25%", "60%"]
+    assert [s.x0 for s in custom.layout.shapes] == [25.0, 60.0]

@@ -130,7 +130,23 @@ DEFAULTS: dict[str, Any] = {
         "rms_bad_factor": 3.0,
         "bad_chan_warn_pct": 5.0,
         "bad_chan_bad_pct": 15.0,
+        "warn_chan_warn_pct": 20.0,  # cube is Warn when this many % of channels are Warn
         "beam_scatter_warn": 0.5,
+        # Checklist: noise-floor convergence (median of the last `convergence_tail` of the
+        # channels over the rest), beam axial ratio, outlier channels (above `outlier_factor`
+        # times the median rms; Warn below `outlier_warn_count` of them), continuum-residual
+        # pixels (% persistent) and channels that are non-Gaussian (%).
+        "convergence_warn": 1.2,
+        "convergence_bad": 2.0,
+        "convergence_tail": 0.1,
+        "axial_ratio_warn": 2.0,
+        "axial_ratio_bad": 3.0,
+        "outlier_factor": 5.0,
+        "outlier_warn_count": 5,
+        "continuum_warn_pct": 0.5,
+        "continuum_bad_pct": 2.0,
+        "kurtosis_chan_warn_pct": 5.0,
+        "kurtosis_chan_bad_pct": 15.0,
         "flag_warn_pct": 10.0,
         "flag_bad_pct": 30.0,
         # Kurtosis (non-Gaussianity): channel flagged when |kurtosis-3| exceeds
@@ -417,7 +433,19 @@ thresholds:
     rms_bad_factor:    3.0
     bad_chan_warn_pct: 5.0
     bad_chan_bad_pct:  15.0
+    warn_chan_warn_pct: 20.0
     beam_scatter_warn: 0.5
+    convergence_warn:  1.2     # median of the last convergence_tail of the channels / the rest
+    convergence_bad:   2.0
+    convergence_tail:  0.1
+    axial_ratio_warn:  2.0
+    axial_ratio_bad:   3.0
+    outlier_factor:    5.0     # channels above this many times the median rms
+    outlier_warn_count: 5      # Warn below this many such channels, Fail from it
+    continuum_warn_pct: 0.5    # % of pixels persistent in over half the channels
+    continuum_bad_pct:  2.0
+    kurtosis_chan_warn_pct: 5.0   # % of channels Bad on kurtosis
+    kurtosis_chan_bad_pct:  15.0
     flag_warn_pct:     10.0
     flag_bad_pct:      30.0
     kurtosis_warn_sigma: 5.0   # |kurtosis-3| > N standard errors -> Warn

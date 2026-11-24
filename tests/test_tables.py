@@ -110,11 +110,11 @@ def test_checklist_notes_the_channels_left_out():
         {"c": ns}, {"c": {"available": False}}, {"c": np.ones(20)}, THRESHOLDS
     )
     notes = {r["criterion"]: r["note"] for r in rows}
-    assert notes["Few bad channels (< 5%)"] == "103 channel(s) without a beam left out"
+    assert notes["Few bad channels"] == "103 channel(s) without a beam left out"
     plain = tables.build_expert_checklist(
         {"c": NS}, {"c": {"available": False}}, {"c": np.ones(20)}, THRESHOLDS
     )
-    assert {r["criterion"]: r["note"] for r in plain}["Few bad channels (< 5%)"] == ""
+    assert {r["criterion"]: r["note"] for r in plain}["Few bad channels"] == ""
 
 
 @uses_tmp_path
@@ -127,3 +127,106 @@ def test_band_summary_counts_the_channels_without_a_beam(tmp_path):
     path = tmp_path / "band.csv"
     tables.write_band_summary_csv(path, {"a": ns}, {"a": {}}, None)
     assert next(csv.DictReader(open(path)))["n_no_beam"] == "7"
+
+
+def _status(criterion, ns=None, beam=None, rms=None, cont=None, kurt=None, **limits):
+    rows = tables.build_expert_checklist(
+        {"c": dict(NS, **(ns or {}))},
+        {"c": beam or {"available": False}},
+        {"c": rms if rms is not None else np.ones(20)},
+        limits,
+        cont_by_label={"c": cont} if cont else None,
+        kurt_by_label={"c": kurt} if kurt else None,
+    )
+    return {r["criterion"]: r for r in rows}[criterion]
+
+
+def test_noise_limits_come_from_the_thresholds():
+    ns = {"rms_to_theory": 2.0}
+    assert _status("Noise vs theory", ns)["status"] == "Warn"
+    assert _status("Noise vs theory", ns, rms_warn_factor=2.5)["status"] == "Pass"
+    assert _status("Noise vs theory", ns, rms_bad_factor=1.8)["status"] == "Fail"
+    assert "< 2.5" in _status("Noise vs theory", ns, rms_warn_factor=2.5)["description"]
+
+
+def test_bad_channel_limits_come_from_the_thresholds():
+    ns = {"pct_bad": 8.0}
+    assert _status("Few bad channels", ns)["status"] == "Warn"
+    assert _status("Few bad channels", ns, bad_chan_warn_pct=10.0)["status"] == "Pass"
+    assert _status("Few bad channels", ns, bad_chan_bad_pct=6.0)["status"] == "Fail"
+    assert _status("No catastrophic channels", ns)["status"] == "Pass"
+    assert _status("No catastrophic channels", ns, bad_chan_bad_pct=8.0)["status"] == "Fail"
+    assert "< 6%" in _status("No catastrophic channels", ns, bad_chan_bad_pct=6.0)["description"]
+
+
+def test_convergence_limits_and_tail_come_from_the_thresholds():
+    rms = np.ones(20)
+    rms[-2:] = 1.5  # the last 10% of the channels
+    assert _status("Noise floor convergence", rms=rms)["status"] == "Warn"
+    assert _status("Noise floor convergence", rms=rms, convergence_warn=2.0)["status"] == "Pass"
+    assert _status("Noise floor convergence", rms=rms, convergence_bad=1.4)["status"] == "Fail"
+    assert (
+        _status("Noise floor convergence", rms=rms, convergence_tail=0.3)["status"] == "Pass"
+    )  # the last 30% has the same median as the rest
+
+
+def test_beam_limits_come_from_the_thresholds():
+    beam = {"available": True, "std_bmaj_asec": 0.7, "axial_ratio": 2.5}
+    assert _status("Beam stability", beam=beam)["status"] == "Warn"
+    assert _status("Beam stability", beam=beam, beam_scatter_warn=1.0)["status"] == "Pass"
+    assert _status("Reasonable axial ratio", beam=beam)["status"] == "Warn"
+    assert _status("Reasonable axial ratio", beam=beam, axial_ratio_warn=3.0)["status"] == "Pass"
+    assert _status("Reasonable axial ratio", beam=beam, axial_ratio_bad=2.2)["status"] == "Fail"
+
+
+def test_outlier_limits_come_from_the_thresholds():
+    rms = np.ones(20)
+    rms[3] = 10.0
+    assert _status("No severe RMS outliers", rms=rms)["status"] == "Warn"
+    assert _status("No severe RMS outliers", rms=rms, outlier_warn_count=1)["status"] == "Fail"
+    assert _status("No severe RMS outliers", rms=rms, outlier_factor=20.0)["status"] == "Pass"
+    assert (
+        _status("No severe RMS outliers", rms=rms, outlier_factor=20.0)["value"]
+        == "0 channels > 20x median"
+    )
+
+
+def test_continuum_and_kurtosis_limits_come_from_the_thresholds():
+    cont = {"available": True, "pct_pixels_persistent": 1.0}
+    assert _status("Low continuum residual", cont=cont)["status"] == "Warn"
+    assert _status("Low continuum residual", cont=cont, continuum_warn_pct=2.0)["status"] == "Pass"
+    assert _status("Low continuum residual", cont=cont, continuum_bad_pct=0.8)["status"] == "Fail"
+    kurt = {"available": True, "pct_bad": 10.0}
+    assert _status("Gaussian noise (kurtosis)", kurt=kurt)["status"] == "Warn"
+    assert (
+        _status("Gaussian noise (kurtosis)", kurt=kurt, kurtosis_chan_warn_pct=12.0)["status"]
+        == "Pass"
+    )
+    assert (
+        _status("Gaussian noise (kurtosis)", kurt=kurt, kurtosis_chan_bad_pct=8.0)["status"]
+        == "Fail"
+    )
+
+
+def test_every_limit_used_by_the_checklist_has_a_default_in_the_config():
+    from hi_cube_qa.config import DEFAULTS
+
+    rows = tables.build_expert_checklist(
+        {"c": NS}, {"c": {"available": False}}, {"c": np.ones(20)}, {}
+    )
+    assert len(rows) == len(tables.CHECKLIST_CRITERIA)
+    for key in (
+        "convergence_warn",
+        "convergence_bad",
+        "convergence_tail",
+        "axial_ratio_warn",
+        "axial_ratio_bad",
+        "outlier_factor",
+        "outlier_warn_count",
+        "continuum_warn_pct",
+        "continuum_bad_pct",
+        "kurtosis_chan_warn_pct",
+        "kurtosis_chan_bad_pct",
+        "warn_chan_warn_pct",
+    ):
+        assert key in DEFAULTS["thresholds"], key

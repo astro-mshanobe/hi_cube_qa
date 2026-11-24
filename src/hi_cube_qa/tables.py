@@ -9,6 +9,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .config import DEFAULTS
+
 
 def setup_logger(log_path: Path | None = None) -> logging.Logger:
     """Return a logger that prints to stdout and (optionally) writes to *log_path*."""
@@ -203,38 +205,40 @@ def write_survey_summary(json_path: Path, csv_path: Path, rows: list[dict]) -> N
 
 
 CHECKLIST_CRITERIA = [
-    ("Noise within 1.5x theoretical", "Band-averaged RMS / noise_theory < 1.5", "noise"),
-    ("Few bad channels (< 5%)", "Fraction of Bad-quality channels < 5%", "noise"),
-    ("No catastrophic channels (< 15% bad)", "Fraction of Bad-quality channels < 15%", "noise"),
-    (
-        "Noise floor convergence",
-        "Cumulative median RMS stabilises before the last 10% of channels",
-        "noise",
-    ),
-    ("Beam stability", "BMAJ std across band < 0.5 arcsec", "beam"),
-    ("Reasonable axial ratio", "BMAJ/BMIN < 2.0 (not severely elongated)", "beam"),
-    ("No severe RMS outliers", "No single channel exceeds 5x median RMS", "noise"),
-    (
-        "Low continuum residual",
-        "Few pixels significant in >50% of channels (continuum subtraction)",
-        "continuum",
-    ),
-    (
-        "Gaussian noise (kurtosis)",
-        "Few channels with |kurtosis-3| beyond the expected sampling error",
-        "noise",
-    ),
-    (
-        "Flat baseline",
-        "Fitted trend of the per-channel mean < 5 standard errors of the mean",
-        "baseline",
-    ),
-    (
-        "Low large-scale noise",
-        "Smoothed-map rms within 1.5x the thermal expectation from neighbouring channels",
-        "large_scale",
-    ),
+    ("Noise vs theory", "noise"),
+    ("Few bad channels", "noise"),
+    ("No catastrophic channels", "noise"),
+    ("Noise floor convergence", "noise"),
+    ("Beam stability", "beam"),
+    ("Reasonable axial ratio", "beam"),
+    ("No severe RMS outliers", "noise"),
+    ("Low continuum residual", "continuum"),
+    ("Gaussian noise (kurtosis)", "noise"),
+    ("Flat baseline", "baseline"),
+    ("Low large-scale noise", "large_scale"),
 ]
+
+
+def _descriptions(lim: dict) -> list[str]:
+    """The text of each criterion with the limits that are in force."""
+    return [
+        f"Band-averaged RMS / noise_theory < {lim['rms_warn_factor']:g}",
+        f"Fraction of Bad-quality channels < {lim['bad_chan_warn_pct']:g}%",
+        f"Fraction of Bad-quality channels < {lim['bad_chan_bad_pct']:g}%",
+        f"Median RMS of the last {lim['convergence_tail']:.0%} of channels within "
+        f"{lim['convergence_warn']:g}x that of the rest",
+        f"BMAJ std across band < {lim['beam_scatter_warn']:g} arcsec",
+        f"BMAJ/BMIN < {lim['axial_ratio_warn']:g} (not severely elongated)",
+        f"No single channel exceeds {lim['outlier_factor']:g}x median RMS",
+        f"Fewer than {lim['continuum_warn_pct']:g}% of pixels significant in >50% of channels "
+        "(continuum subtraction)",
+        f"Fewer than {lim['kurtosis_chan_warn_pct']:g}% of channels with |kurtosis-3| beyond "
+        "the expected sampling error",
+        f"Fitted trend of the per-channel mean < {lim['baseline_warn_sigma']:g} standard errors "
+        "of the mean",
+        f"Smoothed-map rms within {lim['ls_warn_ratio']:g}x the thermal expectation from "
+        "neighbouring channels",
+    ]
 
 
 def build_expert_checklist(
@@ -247,82 +251,105 @@ def build_expert_checklist(
     baseline_by_label: dict | None = None,
     large_by_label: dict | None = None,
 ) -> list[dict]:
-    """Evaluate each expert criterion for each cube."""
+    """Evaluate each expert criterion for each cube; the limits come from *thresholds*."""
     rows = []
     cont_by_label = cont_by_label or {}
     kurt_by_label = kurt_by_label or {}
     baseline_by_label = baseline_by_label or {}
     large_by_label = large_by_label or {}
+    lim = {**DEFAULTS["thresholds"], **thresholds}
+    text = _descriptions(lim)
+
+    def row(label, index, status, value, note=""):
+        name, _category = CHECKLIST_CRITERIA[index]
+        rows.append(_row(label, (name, text[index], _category), status, value, note))
 
     for label, ns in noise_summaries.items():
         bd = beam_diags.get(label, {})
         rms = rms_arrays.get(label, np.array([np.nan]))
 
-        # Noise within 1.5x theoretical
+        # Noise vs theory
         ratio = ns.get("rms_to_theory")
         if ratio is not None:
-            status = "Pass" if ratio < 1.5 else "Warn" if ratio < 3.0 else "Fail"
-            value = f"{ratio:.2f}x"
-            note = ""
+            status = (
+                "Pass"
+                if ratio < lim["rms_warn_factor"]
+                else "Warn"
+                if ratio < lim["rms_bad_factor"]
+                else "Fail"
+            )
+            row(label, 0, status, f"{ratio:.2f}x")
         else:
-            status = "N/A"
-            value = "-"
-            note = "No theoretical noise available"
-        rows.append(_row(label, CHECKLIST_CRITERIA[0], status, value, note))
+            row(label, 0, "N/A", "-", "No theoretical noise available")
 
-        # Few bad channels (< 5%)
+        # Few bad channels
         pct_bad = ns["pct_bad"]
-        status = "Pass" if pct_bad < 5 else "Warn" if pct_bad < 15 else "Fail"
+        warn_pct, bad_pct = lim["bad_chan_warn_pct"], lim["bad_chan_bad_pct"]
+        status = "Pass" if pct_bad < warn_pct else "Warn" if pct_bad < bad_pct else "Fail"
         left_out = ns.get("n_excluded", 0)
         note = f"{left_out} channel(s) without a beam left out" if left_out else ""
-        rows.append(_row(label, CHECKLIST_CRITERIA[1], status, f"{pct_bad:.1f}%", note))
+        row(label, 1, status, f"{pct_bad:.1f}%", note)
 
-        # No catastrophic channels (< 15%)
-        status = "Pass" if pct_bad < 15 else "Fail"
-        rows.append(_row(label, CHECKLIST_CRITERIA[2], status, f"{pct_bad:.1f}%"))
+        # No catastrophic channels
+        row(label, 2, "Pass" if pct_bad < bad_pct else "Fail", f"{pct_bad:.1f}%")
 
         # Noise floor convergence
         n = len(rms)
-        last10 = rms[int(n * 0.9) :]
-        first90 = rms[: int(n * 0.9)]
-        med_last = float(np.nanmedian(last10))
-        med_all = float(np.nanmedian(first90))
+        cut = int(n * (1.0 - lim["convergence_tail"]))
+        med_last = float(np.nanmedian(rms[cut:]))
+        med_all = float(np.nanmedian(rms[:cut]))
         if med_all > 0 and np.isfinite(med_last) and np.isfinite(med_all):
             conv_ratio = med_last / med_all
-            status = "Pass" if conv_ratio < 1.2 else "Warn" if conv_ratio < 2.0 else "Fail"
-            value = f"last-10% median = {conv_ratio:.2f}x band median"
+            status = (
+                "Pass"
+                if conv_ratio < lim["convergence_warn"]
+                else "Warn"
+                if conv_ratio < lim["convergence_bad"]
+                else "Fail"
+            )
+            row(
+                label,
+                3,
+                status,
+                f"last-{lim['convergence_tail']:.0%} median = {conv_ratio:.2f}x band median",
+            )
         else:
-            status = "N/A"
-            value = "-"
-        rows.append(_row(label, CHECKLIST_CRITERIA[3], status, value))
+            row(label, 3, "N/A", "-")
 
         # Beam stability
         if bd.get("available"):
             std_bmaj = bd["std_bmaj_asec"]
-            thresh = thresholds.get("beam_scatter_warn", 0.5)
-            status = "Pass" if std_bmaj < thresh else "Warn"
-            value = f"{std_bmaj:.3f} arcsec std"
+            status = "Pass" if std_bmaj < lim["beam_scatter_warn"] else "Warn"
+            row(label, 4, status, f"{std_bmaj:.3f} arcsec std")
         else:
-            status = "N/A"
-            value = "No beam info"
-        rows.append(_row(label, CHECKLIST_CRITERIA[4], status, value))
+            row(label, 4, "N/A", "No beam info")
 
         # Axial ratio
         if bd.get("available"):
             ar = bd["axial_ratio"]
-            status = "Pass" if ar < 2.0 else "Warn" if ar < 3.0 else "Fail"
-            value = f"{ar:.2f}"
+            status = (
+                "Pass"
+                if ar < lim["axial_ratio_warn"]
+                else "Warn"
+                if ar < lim["axial_ratio_bad"]
+                else "Fail"
+            )
+            row(label, 5, status, f"{ar:.2f}")
         else:
-            status = "N/A"
-            value = "No beam info"
-        rows.append(_row(label, CHECKLIST_CRITERIA[5], status, value))
+            row(label, 5, "N/A", "No beam info")
 
-        # No severe outliers (> 5x median)
+        # No severe outliers
+        factor = lim["outlier_factor"]
         med = float(np.nanmedian(rms[np.isfinite(rms)])) if np.any(np.isfinite(rms)) else 0
-        n_outlier = int(np.sum(rms[np.isfinite(rms)] > 5 * med)) if med > 0 else 0
-        status = "Pass" if n_outlier == 0 else "Warn" if n_outlier < 5 else "Fail"
-        value = f"{n_outlier} channels > 5x median"
-        rows.append(_row(label, CHECKLIST_CRITERIA[6], status, value))
+        n_outlier = int(np.sum(rms[np.isfinite(rms)] > factor * med)) if med > 0 else 0
+        status = (
+            "Pass"
+            if n_outlier == 0
+            else "Warn"
+            if n_outlier < lim["outlier_warn_count"]
+            else "Fail"
+        )
+        row(label, 6, status, f"{n_outlier} channels > {factor:g}x median")
 
         # Continuum residual
         cont = cont_by_label.get(label)
@@ -332,46 +359,57 @@ def build_expert_checklist(
             and np.isfinite(cont.get("pct_pixels_persistent", np.nan))
         ):
             pct = cont["pct_pixels_persistent"]
-            status = "Pass" if pct < 0.5 else "Warn" if pct < 2.0 else "Fail"
-            value = f"{pct:.2f}% pixels persistent >50% channels"
+            status = (
+                "Pass"
+                if pct < lim["continuum_warn_pct"]
+                else "Warn"
+                if pct < lim["continuum_bad_pct"]
+                else "Fail"
+            )
+            row(label, 7, status, f"{pct:.2f}% pixels persistent >50% channels")
         else:
-            status, value = "N/A", "No map"
-        rows.append(_row(label, CHECKLIST_CRITERIA[7], status, value))
+            row(label, 7, "N/A", "No map")
 
         # Non-Gaussian noise (kurtosis)
         kt = kurt_by_label.get(label)
         if kt and kt.get("available"):
             pct_bad_k = kt["pct_bad"]
-            status = "Pass" if pct_bad_k < 5 else "Warn" if pct_bad_k < 15 else "Fail"
-            value = f"{pct_bad_k:.1f}% channels non-Gaussian"
-            note = kt.get("note", "")
+            status = (
+                "Pass"
+                if pct_bad_k < lim["kurtosis_chan_warn_pct"]
+                else "Warn"
+                if pct_bad_k < lim["kurtosis_chan_bad_pct"]
+                else "Fail"
+            )
+            row(label, 8, status, f"{pct_bad_k:.1f}% channels non-Gaussian", kt.get("note", ""))
         else:
-            status, value, note = "N/A", "-", "No kurtosis available"
-        rows.append(_row(label, CHECKLIST_CRITERIA[8], status, value, note))
+            row(label, 8, "N/A", "-", "No kurtosis available")
 
         # Flat baseline
         bl = baseline_by_label.get(label)
         if bl and bl.get("available") and np.isfinite(bl["baseline_sigma"]):
             sigma = bl["baseline_sigma"]
-            warn = thresholds.get("baseline_warn_sigma", 5.0)
-            bad = thresholds.get("baseline_bad_sigma", 10.0)
-            status = "Pass" if sigma < warn else "Warn" if sigma < bad else "Fail"
-            value = f"{sigma:.1f} standard errors"
+            status = (
+                "Pass"
+                if sigma < lim["baseline_warn_sigma"]
+                else "Warn"
+                if sigma < lim["baseline_bad_sigma"]
+                else "Fail"
+            )
             note = f"{bl['n_clipped']} channel(s) clipped" if bl["n_clipped"] else ""
+            row(label, 9, status, f"{sigma:.1f} standard errors", note)
         else:
-            status, value, note = "N/A", "-", "No baseline fit available"
-        rows.append(_row(label, CHECKLIST_CRITERIA[9], status, value, note))
+            row(label, 9, "N/A", "-", "No baseline fit available")
 
         # Large-scale noise
         ls = large_by_label.get(label)
         if ls and ls.get("available"):
             status = {"Pass": "Pass", "Warn": "Warn", "Fail": "Fail"}.get(ls["status"], "N/A")
             value = f"{ls['median_ratio']:.2f}x thermal ({ls['frac_above']:.0%} of channels above)"
-            note = ls.get("note", "")
+            row(label, 10, status, value, ls.get("note", ""))
         else:
-            status, value = "N/A", "-"
             note = (ls or {}).get("note") or "Not assessed for this product"
-        rows.append(_row(label, CHECKLIST_CRITERIA[10], status, value, note))
+            row(label, 10, "N/A", "-", note)
 
     return rows
 

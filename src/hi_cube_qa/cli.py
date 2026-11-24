@@ -306,7 +306,7 @@ def assess_unit(
         bmaj, bmin, bpa = r["beam"]
         # channels without a beam are empty: leave them out of the statistics and the plots
         no_beam = ~valid_beam(bmaj, bmin) if bmaj is not None else np.zeros(len(rms), dtype=bool)
-        ns = channel_summary(rms, quality, theory_flag, exclude=no_beam)
+        ns = channel_summary(rms, quality, theory_flag, exclude=no_beam, limits=thr)
         bd = r["beam_diag"]
 
         # N_HI sensitivity from the band-median RMS and median beam
@@ -623,7 +623,9 @@ def run_session(sess_cfg: dict, cfg: QAConfig, logger) -> dict | None:
     flag_paths, flag_pat = discover_flag_reports(root, cfg.flagreport_glob)
     if flag_paths:
         flag_data = load_flag_report(flag_paths)
-        flag_fig = fig_flag_summary(flag_data)
+        flag_fig = fig_flag_summary(
+            flag_data, cfg.thresholds["flag_warn_pct"], cfg.thresholds["flag_bad_pct"]
+        )
         logger.info(f"  Flag reports: {len(flag_paths)} JSON(s) via '{flag_pat}'")
     else:
         logger.warning(
